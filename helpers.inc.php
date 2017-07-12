@@ -1,4 +1,8 @@
 <?php
+
+/*
+ * helper functions
+ */
 function error() {
 	print ('Error !');
 	exit(-1);
@@ -17,4 +21,40 @@ function getParam($name, $params, $collection, $default) {
 		$value = $general_value;
 	return $value;
 }
+
+/*
+ * alternative functions entry points
+ * implement your own alternatives in custom-alternatives.class.inc.php
+ */
+function getAlternativeCollectionName($default_collection = '') {
+
+	if (file_exists('custom-alternatives.class.inc.php')) {
+		include ('custom-alternatives.class.inc.php');
+		if (class_exists('CustomAlternatives')) {
+			$custom = new CustomAlternatives();
+
+			if (method_exists($custom, 'GetAlternativeCollectionName')) {
+				return $custom->GetAlternativeCollectionName($default_collection);
+			}
+		}
+	}
+	return $default_collection;
+}
+
+function GetAlternativeQuery($query, $default_collection = '') {
+
+	if (file_exists('custom-alternatives.class.inc.php')) {
+		include ('custom-alternatives.class.inc.php');
+		if (class_exists('CustomAlternatives')) {
+			$custom = new CustomAlternatives();
+
+			if (method_exists('GetAlternativeQuery')) {
+				return CustomAlternatives::GetAlternativeQuery($query, $default_collection);
+			}
+		}
+	}
+	return $default_collection;
+}
+
+
 ?>

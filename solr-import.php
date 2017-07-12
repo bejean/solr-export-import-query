@@ -93,6 +93,13 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			$content = json_encode($docs);
 
 			verbose('Post documents [' . $file_cnt . '/' . count($docs) . ' docs/' . strlen($content) . ' bytes]', $verbose);
+
+			$alternative_collection = getAlternativeCollectionName($collection);
+			if ($alternative_collection!=$collection) {
+				$solr = new Solr($solr_url, $alternative_collection);
+				if (!$solr) error();
+			}
+
 			$solr->post_binarydata($content);
 			$file_cnt++;
 			$file_loop_cnt++;

@@ -77,7 +77,8 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 		if (($line = fgets($handle)) !== false) {
 			$line_items = explode(' ', $line);
 
-			if ($line_items[0] == 'INFO' && $line_items[10] == '[' . $collection . ']' && $line_items[12] == 'path=/select') {
+			$alternative_query_collection = getAlternativeCollectionName($line_items[10]);
+			if ($line_items[0] == 'INFO' && $alternative_query_collection == '[' . $collection . ']' && $line_items[12] == 'path=/select') {
 				$params = array();
 				$p = explode('&', substr($line_items[13], strlen('params={'), -1));
 				foreach ($p as $v1) {
@@ -85,9 +86,12 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 					$params[$v2[0]] = urldecode($v2[1]);
 				}
 				$params['indent'] = 'true';
-				print("query\n");
+				//print("query\n");
+				if ($alternative_query_collection!=$collection) {
+					$solr = new Solr($solr_url, $alternative_query_collection);
+					if (!$solr) error();
+				}
 				$data = $solr->get($params);
-
 			}
 		} else {
 			fclose($handle);
