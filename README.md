@@ -53,7 +53,7 @@ $ grep -h 'INFO' solr.log* | grep 'collection_name' | grep 'path=/select' > quer
 All scripts accept 2 optionnal parameters
 
 ```
--i configuration_file. Default : solr-export. ini (or solr-import.ini or solr-query.ini)
+-i configuration_file. Default : export. ini (or import.ini or query.ini)
 -c collection_name. Default : the collection name configurated in configuration file
 
 php solr-export.php -i config.ini -c customer 

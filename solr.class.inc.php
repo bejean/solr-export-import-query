@@ -261,7 +261,7 @@ class Solr
 		return $ch;
 	}
 
-	public function post_binarydata ($file)
+	public function post_binarydata ($content)
 	{
 		$ch = $this->init_curl();    /* Initialize curl */
 		$url = $this->_url . 'update';
@@ -270,7 +270,7 @@ class Solr
 		$header = array('Content-type:application/json');
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
 
-		$post = file_get_contents($file);
+		$post = file_get_contents($content);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $post);
 
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);

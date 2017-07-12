@@ -39,6 +39,9 @@ $loop_time_duration = getParam('loop_time_duration', $params, $collection, '0');
 $loop_time_request_duration = getParam('loop_time_request_duration', $params, $collection, '0');
 $random = (getParam('random', $params, $collection, '0') == '1');
 
+$randomize_unique_key = getParam('randomize_unique_key', $params, $collection, '');
+$randomize_unique_key_mode = getParam('randomize_unique_key_mode', $params, $collection, '');
+
 $timezone = getParam('timezone', $params, '', '');
 if (!empty($timezone)) date_default_timezone_set($timezone);
 
@@ -76,7 +79,20 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			else
 				$ndx = ($file_loop_cnt == 0) ? 0 : $ndx + 1;
 
-			$solr->post_binarydata(realpath($files[$ndx]));
+			$content= file_get_contents($files[$ndx]);
+
+			if (!empty($randomize_unique_key)) {
+				$docs = json_decode($content);
+				for ($i = 0; $i <count($docs); $i++) {
+					if ($randomize_unique_key_mode=='append')
+						$docs[$i]->$randomize_unique_key = uniqid($docs[$i]->$randomize_unique_key . '_');
+					else
+						$docs[$i]->$randomize_unique_key = uniqid();
+				}
+				$content = json_encode($docs);
+			}
+
+			$solr->post_binarydata(realpath($content));
 			$file_cnt++;
 			$file_loop_cnt++;
 
