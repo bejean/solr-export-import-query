@@ -7,6 +7,10 @@ function error() {
 	print ('Error !');
 	exit(-1);
 }
+function verbose($msg, $verbose) {
+	if ($verbose)
+		print (date('G:i:s') . " - "  . $msg . "\n");
+}
 
 function getParam($name, $params, $collection, $default) {
 	$general_value = isset($params['general'][$name]) ? $params['general'][$name] : $default;
@@ -33,6 +37,7 @@ $max_files = getParam('max_files', $params, $collection, '0');
 $commit_each_file = getParam('commit_each_file', $params, $collection, '0');
 $commit_final = (getParam('commit_final', $params, $collection, '1') == '1');
 $optimize_final = (getParam('optimize_final', $params, $collection, '0') == '1');
+$verbose = (getParam('verbose', $params, $collection, '0') == '1');
 
 $loop_max_count = getParam('loop_max_count', $params, $collection, '0');
 $loop_time_duration = getParam('loop_time_duration', $params, $collection, '0');
@@ -62,7 +67,7 @@ include ('solr.class.inc.php');
 $solr = new Solr($solr_url, $collection);
 if (!$solr) error();
 
-print (date('G:i:s') . "\n");
+verbose('Starting import for collection : ' . $collection, $verbose);
 
 $files = glob($input_dir . '/' . $input_file_pattern, GLOB_BRACE);
 $file_cnt=0;
@@ -82,23 +87,30 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 				$ndx = ($file_loop_cnt == 0) ? 0 : $ndx + 1;
 
 			$content= file_get_contents($files[$ndx]);
-
-			if (!empty($randomize_unique_key)) {
-				$docs = json_decode($content);
-				for ($i = 0; $i <count($docs); $i++) {
+			$docs = json_decode($content);
+			//$content = '{';
+			for ($i = 0; $i <count($docs); $i++) {
+				if (!empty($randomize_unique_key)) {
 					if ($randomize_unique_key_mode=='append')
 						$docs[$i]->$randomize_unique_key = uniqid($docs[$i]->$randomize_unique_key . '_');
 					else
 						$docs[$i]->$randomize_unique_key = uniqid();
 				}
-				$content = json_encode($docs);
+				//if ($i>0) $content .= ',';
+				//$content .= '"add": {"doc": ' . json_encode($docs[$i]) . '}}';
 			}
+			//$content .= '}';
+			$content = json_encode($docs);
 
-			$solr->post_binarydata(realpath($content));
+			verbose('Post documents [' . $file_cnt . '/' . count($docs) . ' docs/' . strlen($content) . ' bytes]', $verbose);
+			$solr->post_binarydata($content);
 			$file_cnt++;
 			$file_loop_cnt++;
 
-			if ($commit_each_file > 0 && ($file_cnt % $commit_each_file) == 0) $solr->commit();
+			if ($commit_each_file > 0 && ($file_cnt % $commit_each_file) == 0) {
+				verbose('Commit', $verbose);
+				$solr->commit();
+			}
 			if ($max_files > 0 && $file_cnt == $max_files) break;
 		} else {
 			sleep(1);
@@ -110,10 +122,11 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 	$loop_count++;
 }
 
+verbose('Commit', $verbose);
 if ($commit_final) $solr->commit();
-print (date('G:i:s') . "\n");
 
+verbose('Optimize', $verbose);
 if ($optimize_final) $solr->optimize();
-print (date('G:i:s') . "\n");
 
+verbose('Export end', $verbose);
 ?>
