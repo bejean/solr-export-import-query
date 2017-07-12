@@ -49,6 +49,8 @@ $input_dir = getParam('input_dir', $params, $collection, './data_export');
 if (empty($input_dir)) usage();
 if (!file_exists($input_dir)) error();
 
+$input_file_pattern = getParam('input_file_pattern', $params, $collection, '*.json');
+
 include ('solr.class.inc.php');
 
 /**********************************************************/
@@ -62,7 +64,7 @@ if (!$solr) error();
 
 print (date('G:i:s') . "\n");
 
-$files = glob($input_dir . '/*.json', GLOB_BRACE);
+$files = glob($input_dir . '/' . $input_file_pattern, GLOB_BRACE);
 $file_cnt=0;
 $loop_count=0;
 

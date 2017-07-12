@@ -270,8 +270,7 @@ class Solr
 		$header = array('Content-type:application/json');
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
 
-		$post = file_get_contents($content);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $post);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $content);
 
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 		curl_setopt($ch, CURLOPT_POST, 1);
