@@ -1,24 +1,10 @@
 <?php
+include ('helpers.inc.php');
+include ('solr.class.inc.php');
+
 function usage() {
 	print ('Missing or bad arguments !');
 	exit(-1);
-}
-function error() {
-	print ('Error !');
-	exit(-1);
-}
-function verbose($msg, $verbose) {
-	if ($verbose)
-		print (date('G:i:s') . " - "  . $msg . "\n");
-}
-
-function getParam($name, $params, $collection, $default) {
-	$general_value = isset($params['general'][$name]) ? $params['general'][$name] : $default;
-	if (!empty($collection))
-		$value = isset($params[$collection][$name]) ? $params[$collection][$name] : $general_value;
-	else
-		$value = $general_value;
-	return $value;
 }
 
 $options = getopt("i:c:");
@@ -35,6 +21,7 @@ if (empty($solr_url)) usage();
 
 $max_files = getParam('max_files', $params, $collection, '0');
 $commit_each_file = getParam('commit_each_file', $params, $collection, '0');
+$commit_each_pause = getParam('commit_each_pause', $params, $collection, '0');
 $commit_final = (getParam('commit_final', $params, $collection, '1') == '1');
 $optimize_final = (getParam('optimize_final', $params, $collection, '0') == '1');
 $verbose = (getParam('verbose', $params, $collection, '0') == '1');
@@ -56,8 +43,6 @@ if (!file_exists($input_dir)) error();
 
 $input_file_pattern = getParam('input_file_pattern', $params, $collection, '*.json');
 
-include ('solr.class.inc.php');
-
 /**********************************************************/
 // Procedural execution steps - edit at your own risk
 /**********************************************************/
@@ -72,6 +57,7 @@ verbose('Starting import for collection : ' . $collection, $verbose);
 $files = glob($input_dir . '/' . $input_file_pattern, GLOB_BRACE);
 $file_cnt=0;
 $loop_count=0;
+$pause=false;
 
 while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 
@@ -81,6 +67,10 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 	$loop_duration = 0;
 	while ($file_loop_cnt < count($files)) {
 		if ($loop_time_request_duration == 0 || $loop_duration < $loop_time_request_duration) {
+			if ($pause) {
+				$pause = false;
+				verbose('Pause ends', $verbose);
+			}
 			if ($random)
 				$ndx = rand(0, count($files)-1);
 			else
@@ -113,6 +103,14 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			}
 			if ($max_files > 0 && $file_cnt == $max_files) break;
 		} else {
+			if (!$pause) {
+				$pause = true;
+				verbose('Pause starts', $verbose);
+				if ($commit_each_pause) {
+					verbose('Commit', $verbose);
+					$solr->commit();
+				}
+			}
 			sleep(1);
 		}
 
@@ -128,5 +126,5 @@ if ($commit_final) $solr->commit();
 verbose('Optimize', $verbose);
 if ($optimize_final) $solr->optimize();
 
-verbose('Export end', $verbose);
+verbose('Import end', $verbose);
 ?>

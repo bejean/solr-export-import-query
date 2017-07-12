@@ -1,21 +1,10 @@
 <?php
+include ('helpers.inc.php');
+include ('solr.class.inc.php');
+
 function usage() {
 	print ('Missing or bad arguments !');
 	exit(-1);
-}
-function error() {
-	print ('Error !');
-	exit(-1);
-}
-
-
-function getParam($name, $params, $collection, $default) {
-	$general_value = isset($params['general'][$name]) ? $params['general'][$name] : $default;
-	if (!empty($collection))
-		$value = isset($params[$collection][$name]) ? $params[$collection][$name] : $general_value;
-	else
-		$value = $general_value;
-	return $value;
 }
 
 date_default_timezone_set('Europe/Paris');
@@ -31,6 +20,8 @@ if (empty($collection)) usage();
 
 $solr_url = getParam('solr_url', $params, $collection, '');
 if (empty($solr_url)) usage();
+
+$verbose = (getParam('verbose', $params, $collection, '0') == '1');
 
 $fl = getParam('fl', $params, $collection, '*');
 $q = getParam('q', $params, $collection, '*:*');
@@ -65,8 +56,6 @@ if ($start='*') {
 else
 	$params['start'] = $start;
 
-include ('solr.class.inc.php');
-
 
 /**********************************************************/
 // Procedural execution steps - edit at your own risk
@@ -80,6 +69,8 @@ $total_docs=0;
 
 $solr = new Solr($solr_url, $collection);
 if (!$solr) error();
+
+verbose('Starting export for collection : ' . $collection, $verbose);
 
 while(($data = $solr->get($params)) !== false) {
 	$end_of_index = false;
@@ -123,7 +114,9 @@ while(($data = $solr->get($params)) !== false) {
 		}
 	} //foreach docs
 
-	file_put_contents ( $output_dir . '/' . $collection .  '-' . $page_cnt . '.json' , json_encode($output_doc_array, JSON_PRETTY_PRINT) );
+	$file_name = $output_dir . '/' . $collection .  '-' . $page_cnt . '.json';
+	verbose('Write json file [' . $file_name . ']', $verbose);
+	file_put_contents ( $file_name , json_encode($output_doc_array, JSON_PRETTY_PRINT) );
 	if($end_of_index === true) {
 		break;
 	}
@@ -136,5 +129,7 @@ while(($data = $solr->get($params)) !== false) {
 		$params['start'] += $rows;
 	}
 }
+
+verbose('Export end', $verbose);
 
 ?>

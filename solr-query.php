@@ -1,21 +1,12 @@
 <?php
+include ('helpers.inc.php');
+include ('solr.class.inc.php');
+
 function usage() {
 	print ('Missing or bad arguments !');
 	exit(-1);
 }
-function error() {
-	print ('Error !');
-	exit(-1);
-}
 
-function getParam($name, $params, $collection, $default) {
-	$general_value = isset($params['general'][$name]) ? $params['general'][$name] : $default;
-	if (!empty($collection))
-		$value = isset($params[$collection][$name]) ? $params[$collection][$name] : $general_value;
-	else
-		$value = $general_value;
-	return $value;
-}
 
 $options = getopt("i:c:");
 
@@ -33,6 +24,7 @@ $loop_max_count = getParam('loop_max_count', $params, $collection, '0');
 $loop_time_duration = getParam('loop_time_duration', $params, $collection, '0');
 $loop_time_request_duration = getParam('loop_time_request_duration', $params, $collection, '0');
 $random = (getParam('random', $params, $collection, '0') == '1');
+$verbose = (getParam('verbose', $params, $collection, '0') == '1');
 
 $timezone = getParam('timezone', $params, '', '');
 if (!empty($timezone)) date_default_timezone_set($timezone);
@@ -42,8 +34,6 @@ if (empty($log_dir)) usage();
 if (!file_exists($log_dir)) error();
 
 $log_pattern = getParam('log_pattern', $params, $collection, $collection . '.log');
-
-include ('solr.class.inc.php');
 
 /**********************************************************/
 // Procedural execution steps - edit at your own risk
@@ -55,13 +45,14 @@ $file_cnt=0;
 $solr = new Solr($solr_url, $collection);
 if (!$solr) error();
 
-print (date('G:i:s') . "\n");
+verbose('Starting queries for collection : ' . $collection, $verbose);
 
 $files = glob($log_dir . '/' . $log_pattern, GLOB_BRACE);
 $file_cnt=0;
 $loop_count=0;
 $loop_duration=0;
 $handle=0;
+$pause=false;
 
 $loop_start_time = time();
 while ($loop_max_count==0 || $loop_count<$loop_max_count) {
@@ -79,6 +70,10 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 	}
 
 	if ($loop_time_request_duration == 0 || $loop_duration < $loop_time_request_duration) {
+		if ($pause) {
+			$pause = false;
+			verbose('Pause ends', $verbose);
+		}
 		if (($line = fgets($handle)) !== false) {
 			$line_items = explode(' ', $line);
 
@@ -101,7 +96,10 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			$file_cnt++;
 		}
 	} else {
-		print("pause\n");
+		if (!$pause) {
+			$pause = true;
+			verbose('Pause starts', $verbose);
+		}
 		sleep(1);
 	}
 	$loop_duration = time() - $loop_start_time;
@@ -111,7 +109,7 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 	}
 }
 
-print (date('G:i:s') . "\n");
+verbose('Queries end', $verbose);
 
 
 ?>
