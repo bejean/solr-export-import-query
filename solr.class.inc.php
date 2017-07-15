@@ -119,7 +119,7 @@ class Solr
 		$response = curl_exec($ch);
 		$data = $this->transform($response);
 
-		if (isset($data['response']) && count($data['response']['docs']) > 0) {
+		if (isset($data['response']) || isset($data['grouped']) || isset($data['facet_counts'])) {
 			return $data;
 		} else {
 			//Sleep and re-try once
