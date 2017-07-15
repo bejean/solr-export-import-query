@@ -78,27 +78,31 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 
 			$content= file_get_contents($files[$ndx]);
 			$docs = json_decode($content);
-			//$content = '{';
-			for ($i = 0; $i <count($docs); $i++) {
-				if (!empty($randomize_unique_key)) {
-					if ($randomize_unique_key_mode=='append')
-						$docs[$i]->$randomize_unique_key = uniqid($docs[$i]->$randomize_unique_key . '_');
-					else
-						$docs[$i]->$randomize_unique_key = uniqid();
-				}
-				//if ($i>0) $content .= ',';
-				//$content .= '"add": {"doc": ' . json_encode($docs[$i]) . '}}';
-			}
-			//$content .= '}';
-			$content = json_encode($docs);
-
-			verbose('Post documents [' . $file_cnt . '/' . count($docs) . ' docs/' . strlen($content) . ' bytes]', $verbose);
 
 			$alternative_collection = getAlternativeCollectionName($collection);
 			if ($alternative_collection!=$collection) {
 				$solr = new Solr($solr_url, $alternative_collection);
 				if (!$solr) error();
 			}
+
+			for ($i = 0; $i <count($docs); $i++) {
+				if (!empty($randomize_unique_key)) {
+					switch($randomize_unique_key_mode) {
+						case 'collection_name_append':
+							$docs[$i]->$randomize_unique_key = $docs[$i]->$randomize_unique_key . '_' . $alternative_collection;
+							break;
+						case 'uniqid_append':
+							$docs[$i]->$randomize_unique_key = uniqid($docs[$i]->$randomize_unique_key . '_');
+							break;
+						case 'uniqid_replace':
+							$docs[$i]->$randomize_unique_key = uniqid();
+							break;
+					}
+				}
+			}
+			$content = json_encode($docs);
+
+			verbose('Post documents [' . $file_cnt . '/' . count($docs) . ' docs/' . strlen($content) . ' bytes]', $verbose);
 
 			$solr->post_binarydata($content);
 			$file_cnt++;

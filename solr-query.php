@@ -77,8 +77,8 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 		if (($line = fgets($handle)) !== false) {
 			$line_items = explode(' ', $line);
 
-			$alternative_query_collection = getAlternativeCollectionName($line_items[10]);
-			if ($line_items[0] == 'INFO' && $alternative_query_collection == '[' . $collection . ']' && $line_items[12] == 'path=/select') {
+			$alternative_query_collection = getAlternativeCollectionName(substr($line_items[10], 1 , -1));
+			if ($line_items[0] == 'INFO' && $alternative_query_collection == $collection && $line_items[12] == 'path=/select') {
 				$params = array();
 				$p = explode('&', substr($line_items[13], strlen('params={'), -1));
 				foreach ($p as $v1) {

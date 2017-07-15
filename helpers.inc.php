@@ -29,7 +29,7 @@ function getParam($name, $params, $collection, $default) {
 function getAlternativeCollectionName($default_collection = '') {
 
 	if (file_exists('custom-alternatives.class.inc.php')) {
-		include ('custom-alternatives.class.inc.php');
+		include_once ('custom-alternatives.class.inc.php');
 		if (class_exists('CustomAlternatives')) {
 			$custom = new CustomAlternatives();
 
@@ -44,7 +44,7 @@ function getAlternativeCollectionName($default_collection = '') {
 function GetAlternativeQuery($query, $default_collection = '') {
 
 	if (file_exists('custom-alternatives.class.inc.php')) {
-		include ('custom-alternatives.class.inc.php');
+		include_once ('custom-alternatives.class.inc.php');
 		if (class_exists('CustomAlternatives')) {
 			$custom = new CustomAlternatives();
 
