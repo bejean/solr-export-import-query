@@ -31,7 +31,7 @@ if (!empty($timezone)) date_default_timezone_set($timezone);
 
 $log_dir = getParam('log_dir', $params, $collection, './data_log');
 if (empty($log_dir)) usage();
-	if (!file_exists($log_dir)) error($log_dir);
+	if (!file_exists($log_dir)) error('log dir : ' . $log_dir);
 
 $log_pattern = getParam('log_pattern', $params, $collection, $collection . '.log');
 
@@ -43,7 +43,7 @@ $log_pattern = getParam('log_pattern', $params, $collection, $collection . '.log
 $file_cnt=0;
 
 $solr = new Solr($solr_url, $collection);
-if (!$solr) error($solr_url . '/' .  $collection);
+if (!$solr) error('Solr url : ' . $solr_url . '/' .  $collection);
 
 verbose('Starting queries for collection : ' . $collection, $verbose);
 
@@ -89,7 +89,7 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 				//print("query\n");
 				if ($alternative_query_collection!=$collection) {
 					$solr = new Solr($solr_url, $alternative_query_collection);
-					if (!$solr) error($solr_url . '/' .  $alternative_query_collection);
+					if (!$solr) error('Solr url : ' . $solr_url . '/' .  $alternative_query_collection);
 				}
 				$data = $solr->get($params);
 			}
