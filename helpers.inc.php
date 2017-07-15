@@ -3,8 +3,8 @@
 /*
  * helper functions
  */
-function error() {
-	print ('Error !');
+function error($msg='') {
+	print ('Error : ' . $msg . '!');
 	exit(-1);
 }
 
