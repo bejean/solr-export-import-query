@@ -114,7 +114,7 @@ class Solr
 		$query['wt'] = 'json';
 
 		//Set URL
-		$url = $this->_url . 'select?' . http_build_query($query);
+		$url = $this->_url . 'select?' . preg_replace('/%5B(?:[0-9]|[1-9][0-9]+)%5D=/', '=',http_build_query($query));
 		curl_setopt($ch, CURLOPT_URL, $url);
 		$response = curl_exec($ch);
 		$data = $this->transform($response);
