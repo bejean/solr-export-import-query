@@ -30,7 +30,7 @@ class CustomAlternatives
 
 			// if we need to use only one collection shard but our solr query logs contains is referring various shards
 			if ($alternative_collection_method=='many_to_one') {
-				return preg_replace ( '_shard[0-9]{1,2}' , '0', $default_collection );
+				return preg_replace ( '/_shard[0-9]{1,2}/' , '_shard0', $default_collection );
 			}
 		}
 		return $default_collection;
@@ -43,7 +43,7 @@ class CustomAlternatives
 		// if we need to use only one collection shard but our solr query logs contains is referring various shards
 		$alternative_query = (getParam('custom_alternative_query', $params, $default_collection, '0') == '1');
 		if ($alternative_query) {
-			return preg_replace ( '_shard[0-9]{1,2}' , '0', $query );
+			return preg_replace ( '/_shard[0-9]{1,2}/' , '_shard0', $query );
 		}
 		return $query;
 	}

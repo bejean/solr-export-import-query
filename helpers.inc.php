@@ -48,12 +48,12 @@ function GetAlternativeQuery($query, $default_collection = '') {
 		if (class_exists('CustomAlternatives')) {
 			$custom = new CustomAlternatives();
 
-			if (method_exists('GetAlternativeQuery')) {
+			if (method_exists($custom,'GetAlternativeQuery')) {
 				return CustomAlternatives::GetAlternativeQuery($query, $default_collection);
 			}
 		}
 	}
-	return $default_collection;
+	return $query;
 }
 
 
