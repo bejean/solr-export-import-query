@@ -83,7 +83,12 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 				$p = explode('&', substr($line_items[13], strlen('params={'), -1));
 				foreach ($p as $v1) {
 					$v2 = explode('=', $v1);
-					$params[$v2[0]] = urldecode($v2[1]);
+					if (!array_key_exists($v2[0], $params)) {
+						$params[$v2[0]] = array();
+					}
+					$vtemp = $params[$v2[0]];
+					$vtemp[] = urldecode($v2[1]);
+					$params[$v2[0]] = $vtemp;
 				}
 				$params['indent'] = 'true';
 				//print("query\n");
