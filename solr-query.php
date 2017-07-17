@@ -79,24 +79,25 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 
 			$alternative_query_collection = getAlternativeCollectionName(substr($line_items[10], 1 , -1));
 			if ($line_items[0] == 'INFO' && $alternative_query_collection == $collection && $line_items[12] == 'path=/select') {
-				$params = array();
+				$line_items[13] = GetAlternativeQuery($line_items[13], $collection);
+				$solr_params = array();
 				$p = explode('&', substr($line_items[13], strlen('params={'), -1));
 				foreach ($p as $v1) {
 					$v2 = explode('=', $v1);
-					if (!array_key_exists($v2[0], $params)) {
-						$params[$v2[0]] = array();
+					if (!array_key_exists($v2[0], $solr_params)) {
+						$solr_params[$v2[0]] = array();
 					}
-					$vtemp = $params[$v2[0]];
+					$vtemp = $solr_params[$v2[0]];
 					$vtemp[] = urldecode($v2[1]);
-					$params[$v2[0]] = $vtemp;
+					$solr_params[$v2[0]] = $vtemp;
 				}
-				$params['indent'] = 'true';
+				$solr_params['indent'] = 'true';
 				//print("query\n");
 				if ($alternative_query_collection!=$collection) {
 					$solr = new Solr($solr_url, $alternative_query_collection);
 					if (!$solr) error('Solr url : ' . $solr_url . '/' .  $alternative_query_collection);
 				}
-				$data = $solr->get($params);
+				$data = $solr->get($solr_params);
 			}
 		} else {
 			fclose($handle);
