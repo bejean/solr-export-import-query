@@ -70,7 +70,7 @@ $total_docs=0;
 $solr = new Solr($solr_url, $collection);
 if (!$solr) error();
 
-verbose('Starting export for collection : ' . $collection, $verbose);
+verbose($solr->getCollection() . ' - Starting export for collection : ' . $collection, $verbose);
 
 while(($data = $solr->get($params)) !== false) {
 	$end_of_index = false;
@@ -115,7 +115,7 @@ while(($data = $solr->get($params)) !== false) {
 	} //foreach docs
 
 	$file_name = $output_dir . '/' . $collection .  '-' . $page_cnt . '.json';
-	verbose('Write json file [' . $file_name . ']', $verbose);
+	verbose($solr->getCollection() . ' - Write json file [' . $file_name . ']', $verbose);
 	file_put_contents ( $file_name , json_encode($output_doc_array, JSON_PRETTY_PRINT) );
 	if($end_of_index === true) {
 		break;
@@ -130,6 +130,6 @@ while(($data = $solr->get($params)) !== false) {
 	}
 }
 
-verbose('Export end', $verbose);
+verbose($solr->getCollection() . ' - Export end', $verbose);
 
 ?>

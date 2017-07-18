@@ -52,7 +52,7 @@ $input_file_pattern = getParam('input_file_pattern', $params, $collection, '*.js
 $solr = new Solr($solr_url, $collection);
 if (!$solr) error();
 
-verbose('Starting import for collection : ' . $collection, $verbose);
+verbose($solr->getCollection() . ' - Starting import for collection : ' . $collection, $verbose);
 
 $files = glob($input_dir . '/' . $input_file_pattern, GLOB_BRACE);
 $file_cnt=0;
@@ -69,7 +69,7 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 		if ($loop_time_request_duration == 0 || $loop_duration < $loop_time_request_duration) {
 			if ($pause) {
 				$pause = false;
-				verbose('Pause ends', $verbose);
+				verbose($solr->getCollection() . ' - Pause ends', $verbose);
 			}
 			if ($random)
 				$ndx = rand(0, count($files)-1);
@@ -102,23 +102,23 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			}
 			$content = json_encode($docs);
 
-			verbose('Post documents [' . $file_cnt . '/' . count($docs) . ' docs/' . strlen($content) . ' bytes]', $verbose);
+			verbose($solr->getCollection() . ' - Post documents [' . $file_cnt . '/' . count($docs) . ' docs/' . strlen($content) . ' bytes]', $verbose);
 
 			$solr->post_binarydata($content);
 			$file_cnt++;
 			$file_loop_cnt++;
 
 			if ($commit_each_file > 0 && ($file_cnt % $commit_each_file) == 0) {
-				verbose('Commit', $verbose);
+				verbose($solr->getCollection() . ' - Commit', $verbose);
 				$solr->commit();
 			}
 			if ($max_files > 0 && $file_cnt == $max_files) break;
 		} else {
 			if (!$pause) {
 				$pause = true;
-				verbose('Pause starts', $verbose);
+				verbose($solr->getCollection() . ' - Pause starts', $verbose);
 				if ($commit_each_pause) {
-					verbose('Commit', $verbose);
+					verbose($solr->getCollection() . ' - Commit', $verbose);
 					$solr->commit();
 				}
 			}
@@ -131,11 +131,11 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 	$loop_count++;
 }
 
-verbose('Commit', $verbose);
+verbose($solr->getCollection() . ' - Commit', $verbose);
 if ($commit_final) $solr->commit();
 
-verbose('Optimize', $verbose);
+verbose($solr->getCollection() . ' - Optimize', $verbose);
 if ($optimize_final) $solr->optimize();
 
-verbose('Import end', $verbose);
+verbose($solr->getCollection() . ' - Import end', $verbose);
 ?>

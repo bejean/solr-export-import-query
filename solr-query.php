@@ -45,7 +45,7 @@ $file_cnt=0;
 $solr = new Solr($solr_url, $collection);
 if (!$solr) error('Solr url : ' . $solr_url . '/' .  $collection);
 
-verbose('Starting queries for collection : ' . $collection, $verbose);
+verbose($solr->getCollection() . ' - Starting queries for collection : ' . $collection, $verbose);
 
 $files = glob($log_dir . '/' . $log_pattern, GLOB_BRACE);
 $file_cnt=0;
@@ -72,7 +72,7 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 	if ($loop_time_request_duration == 0 || $loop_duration < $loop_time_request_duration) {
 		if ($pause) {
 			$pause = false;
-			verbose('Pause ends', $verbose);
+			verbose($solr->getCollection() . ' - Pause ends', $verbose);
 		}
 		if (($line = fgets($handle)) !== false) {
 			$line_items = explode(' ', $line);
@@ -108,7 +108,7 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 	} else {
 		if (!$pause) {
 			$pause = true;
-			verbose('Pause starts', $verbose);
+			verbose($solr->getCollection() . ' - Pause starts', $verbose);
 		}
 		sleep(1);
 	}
@@ -119,7 +119,7 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 	}
 }
 
-verbose('Queries end', $verbose);
+verbose($solr->getCollection() . ' - Queries end', $verbose);
 
 
 ?>

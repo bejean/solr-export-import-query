@@ -6,11 +6,17 @@ class Solr
 	private $_url = null;
 	private $_writer = null;
 	private $_timeout = null;
+	private $_collection = null;
 
 	function __construct($url, $collection, $writer = 'json', $timeout = 60) {
 		$this->_url=$url . $collection . '/';
 		$this->_writer=$writer;
 		$this->_timeout=$timeout;
+		$this->_collection=$collection;
+	}
+
+	function getCollection() {
+		return $this->_collection;
 	}
 
 	/**
