@@ -48,6 +48,7 @@ if (!$solr) error('Solr url : ' . $solr_url . '/' .  $collection);
 verbose($solr->getCollection() . ' - Starting queries for collection : ' . $collection, $verbose);
 
 $files = glob($log_dir . '/' . $log_pattern, GLOB_BRACE);
+if (count($files)==0) error("no query log file");
 $file_cnt=0;
 $loop_count=0;
 $loop_duration=0;

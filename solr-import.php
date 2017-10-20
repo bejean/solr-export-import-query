@@ -55,6 +55,7 @@ if (!$solr) error();
 verbose($solr->getCollection() . ' - Starting import for collection : ' . $collection, $verbose);
 
 $files = glob($input_dir . '/' . $input_file_pattern, GLOB_BRACE);
+if (count($files)==0) error("no data file");
 $file_cnt=0;
 $loop_count=0;
 $pause=false;
