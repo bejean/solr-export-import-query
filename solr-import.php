@@ -75,8 +75,9 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			if ($random)
 				$ndx = rand(0, count($files)-1);
 			else
-				$ndx = ($file_loop_cnt == 0) ? 0 : $ndx + 1;
+				$ndx = (($loop_count == 0 && $file_loop_cnt == 0) || $ndx < (count($files)-1)) ? 0 : $ndx + 1;
 
+			verbose('Read data in : ' . $files[$ndx], $verbose);
 			$content= file_get_contents($files[$ndx]);
 			$docs = json_decode($content);
 
