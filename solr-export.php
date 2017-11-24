@@ -3,7 +3,7 @@ include ('helpers.inc.php');
 include ('solr.class.inc.php');
 
 function usage() {
-	print ('Missing or bad arguments !');
+	print ('php solr-export.php -i inifile.ini -c collection');
 	exit(-1);
 }
 
@@ -11,12 +11,15 @@ date_default_timezone_set('Europe/Paris');
 
 $options = getopt("i:c:");
 
+// ini file
 $param_file = isset($options['i']) ? $options['i'] : 'export.ini';
 if (!file_exists($param_file)) usage();
 $params = parse_ini_file($param_file, true);
 
-$collection = isset($options['c']) ? $options['c'] : getParam('collection', $params, '', '');
+// collection
+$collection = isset($options['c']) ? $options['c'] : '';
 if (empty($collection)) usage();
+
 
 $solr_url = getParam('solr_url', $params, $collection, '');
 if (empty($solr_url)) usage();
@@ -98,7 +101,7 @@ while(($data = $solr->get($solr_params)) !== false) {
 		else
 			$end_of_index = ($doc_cnt == $total_docs);
 
-		if(array_key_exists('_version_',$doc) === true)
+				if(array_key_exists('_version_',$doc) === true)
 			unset($doc['_version_']);
 
 		// Remove un-wanted fields
