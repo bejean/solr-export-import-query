@@ -76,6 +76,7 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			verbose($solr->getCollection() . ' - Pause ends', $verbose);
 		}
 		if (($line = fgets($handle)) !== false) {
+            verbose($solr->getCollection() . ' - ' . $line, $verbose);
 			$line_items = explode(' ', $line);
 
 			$alternative_query_collection = getAlternativeCollectionName(substr($line_items[10], 1 , -1));
@@ -98,7 +99,8 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 					$solr = new Solr($solr_url, $alternative_query_collection);
 					if (!$solr) error('Solr url : ' . $solr_url . '/' .  $alternative_query_collection);
 				}
-				$data = $solr->get($solr_params);
+                verbose($solr->getCollection() . ' - ' . $solr_url . implode($solr_params,'&'), $verbose);
+                $data = $solr->get($solr_params);
 			}
 		} else {
 			fclose($handle);
