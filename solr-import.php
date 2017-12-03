@@ -3,7 +3,7 @@ include ('helpers.inc.php');
 include ('solr.class.inc.php');
 
 function usage() {
-	print ('Missing or bad arguments !');
+    print ('Usage : php solr-import.php -i <inifile> -c <collection_section_in_inifile');
 	exit(-1);
 }
 
@@ -66,19 +66,13 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 
 	$file_loop_cnt = 0;
 	$loop_duration = 0;
+    $ndx = 0;
 	while ($file_loop_cnt < count($files)) {
 		if ($loop_time_request_duration == 0 || $loop_duration < $loop_time_request_duration) {
 			if ($pause) {
 				$pause = false;
 				verbose($solr->getCollection() . ' - Pause ends', $verbose);
 			}
-			if ($random)
-				$ndx = rand(0, count($files)-1);
-			else
-				$ndx = ($loop_count == 0 && $file_loop_cnt == 0) ? 0 : $ndx + 1;
-
-			if ($ndx>count($files)-1)
-			    break;
 
 			verbose('Read data in : ' . $files[$ndx], $verbose);
 			$content= file_get_contents($files[$ndx]);
@@ -110,7 +104,7 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			verbose($solr->getCollection() . ' - Post documents [' . $file_cnt . '/' . count($docs) . ' docs/' . strlen($content) . ' bytes]', $verbose);
 
 			$result = json_decode(json_encode($solr->post_binarydata($content)),true);
-            if ($result['responseHeader']['status']!=0) {
+            if ($result['responseHeader']['status'] != 0) {
                 //$e = 1;
             }
 			$file_cnt++;
@@ -120,6 +114,15 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 				verbose($solr->getCollection() . ' - Commit', $verbose);
 				$solr->commit();
 			}
+
+            if ($random)
+                $ndx = rand(0, count($files)-1);
+            else
+                $ndx++;
+            //$ndx = ($loop_count == 0 && $file_loop_cnt == 0) ? 0 : $ndx + 1;
+
+            if ($ndx>count($files)-1) break;
+
 			if ($max_files > 0 && $file_cnt == $max_files) break;
 		} else {
 			if (!$pause) {
@@ -137,7 +140,11 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 		if ($loop_time_duration>0 && $loop_duration>$loop_time_duration) break;
 	}
 	$loop_count++;
+
+    verbose($solr->getCollection() . ' - Commit', $verbose);
+    $solr->commit();
 }
+verbose($solr->getCollection() . ' - Commit', $verbose);
 $solr->commit();
 
 verbose($solr->getCollection() . ' - Commit', $verbose);

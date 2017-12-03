@@ -3,7 +3,7 @@ include ('helpers.inc.php');
 include ('solr.class.inc.php');
 
 function usage() {
-	print ('Missing or bad arguments !');
+	print ('Usage : php solr-query.php -i <inifile> -c <collection_section_in_inifile');
 	exit(-1);
 }
 
@@ -57,7 +57,6 @@ $loop_duration=0;
 $handle=0;
 $pause=false;
 
-
 $handle_out = 0;
 if (!empty($output_file))
     $handle_out = fopen($output_file, 'a');
@@ -97,27 +96,27 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
             //$alternative_query_collection = getAlternativeCollectionName(substr($c, 1 , -1));
 			//if ($alternative_query_collection == $collection && $line_items[12] == 'path=/select') {
 			//	$line_items[13] = GetAlternativeQuery($line_items[13], $collection);
-				$solr_params = array();
-				$p = explode('&', $q);
-				foreach ($p as $v1) {
-					$v2 = explode('=', $v1);
-					if (!array_key_exists($v2[0], $solr_params)) {
-						$solr_params[$v2[0]] = array();
-					}
-					$vtemp = $solr_params[$v2[0]];
-					$vtemp[] = urldecode($v2[1]);
-					$solr_params[$v2[0]] = $vtemp;
-				}
-				$solr_params['indent'] = 'true';
-				//print("query\n");
-				//if ($alternative_query_collection!=$collection) {
-				//	$solr = new Solr($solr_url, $alternative_query_collection);
-				//	if (!$solr) error('Solr url : ' . $solr_url . '/' .  $alternative_query_collection);
-				//}
-                verbose($solr->getCollection() . ' - ' . $solr_url . $c . '/select?' . $q, $verbose);
-                $data = json_decode(json_encode($solr->get($solr_params)),true);
-                $rqt = $data['responseHeader']['QTime'];
-                $rqh = $data['response']['numFound'];
+            $solr_params = array();
+            $p = explode('&', $q);
+            foreach ($p as $v1) {
+                $v2 = explode('=', $v1);
+                if (!array_key_exists($v2[0], $solr_params)) {
+                    $solr_params[$v2[0]] = array();
+                }
+                $vtemp = $solr_params[$v2[0]];
+                $vtemp[] = urldecode($v2[1]);
+                $solr_params[$v2[0]] = $vtemp;
+            }
+            $solr_params['indent'] = 'true';
+            //print("query\n");
+            //if ($alternative_query_collection!=$collection) {
+            //	$solr = new Solr($solr_url, $alternative_query_collection);
+            //	if (!$solr) error('Solr url : ' . $solr_url . '/' .  $alternative_query_collection);
+            //}
+            verbose($solr->getCollection() . ' - ' . $solr_url . $c . '/select?' . $q, $verbose);
+            $data = json_decode(json_encode($solr->get($solr_params)),true);
+            $rqt = $data['responseHeader']['QTime'];
+            $rqh = $data['response']['numFound'];
 
             if (!empty($handle_out))
                 fputcsv ( $handle_out, array ($d, $t, $c, $hits, $qt, $rqh, $rqt) );
