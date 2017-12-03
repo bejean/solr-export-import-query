@@ -82,7 +82,8 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			$pause = false;
 			verbose($solr->getCollection() . ' - Pause ends', $verbose);
 		}
-		if (($line = trim(fgets($handle))) !== false) {
+		if (($line = fgets($handle)) !== false) {
+            $line = trim($line);
             verbose($solr->getCollection() . ' - ' . $line, $verbose);
 			$line_items = explode(' ', $line);
 
