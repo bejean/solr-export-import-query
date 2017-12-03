@@ -13,7 +13,11 @@ function verbose($msg, $verbose) {
 		print (date('G:i:s') . " - "  . $msg . "\n");
 }
 
-function getParam($name, $params, $collection, $default) {
+function trace($msg) {
+        print (date('G:i:s') . " - "  . $msg . "\n");
+}
+
+function getParam($name, $params, $collection, $default = '') {
 	$general_value = isset($params['general'][$name]) ? $params['general'][$name] : $default;
 	if (!empty($collection))
 		$value = isset($params[$collection][$name]) ? $params[$collection][$name] : $general_value;

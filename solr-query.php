@@ -14,7 +14,7 @@ $param_file = isset($options['i']) ? $options['i'] : 'query.ini';
 if (!file_exists($param_file)) usage();
 $params = parse_ini_file($param_file, true);
 
-$collection = isset($options['c']) ? $options['c'] : getParam('collection', $params, '', '');
+$collection = isset($options['c']) ? $options['c'] : '';
 if (empty($collection)) usage();
 
 $solr_url = getParam('solr_url', $params, $collection, '');
@@ -34,6 +34,8 @@ if (empty($log_dir)) usage();
 	if (!file_exists($log_dir)) error('log dir : ' . $log_dir);
 
 $log_pattern = getParam('log_pattern', $params, $collection, $collection . '.log');
+
+$output_file = getParam('output_csv', $params, $collection);
 
 /**********************************************************/
 // Procedural execution steps - edit at your own risk
@@ -55,6 +57,11 @@ $loop_duration=0;
 $handle=0;
 $pause=false;
 
+
+$handle_out = 0;
+if (!empty($output_file))
+    $handle_out = fopen($output_file, 'a');
+
 $loop_start_time = time();
 while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 
@@ -75,7 +82,7 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			$pause = false;
 			verbose($solr->getCollection() . ' - Pause ends', $verbose);
 		}
-		if (($line = fgets($handle)) !== false) {
+		if (($line = trim(fgets($handle))) !== false) {
             verbose($solr->getCollection() . ' - ' . $line, $verbose);
 			$line_items = explode(' ', $line);
 
@@ -83,6 +90,8 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
             $t = $line_items[1];
             $c = $line_items[2];
             $q = $line_items[3];
+            $hits = $line_items[4];
+            $qt = $line_items[5];
 
             //$alternative_query_collection = getAlternativeCollectionName(substr($c, 1 , -1));
 			//if ($alternative_query_collection == $collection && $line_items[12] == 'path=/select') {
@@ -104,8 +113,14 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 				//	$solr = new Solr($solr_url, $alternative_query_collection);
 				//	if (!$solr) error('Solr url : ' . $solr_url . '/' .  $alternative_query_collection);
 				//}
-                verbose($solr->getCollection() . ' - ' . $solr_url . implode($solr_params,'&'), $verbose);
-                $data = $solr->get($solr_params);
+                verbose($solr->getCollection() . ' - ' . $solr_url . $c . '/select?' . $q, $verbose);
+                $data = json_decode(json_encode($solr->get($solr_params)),true);
+                $rqt = $data['responseHeader']['QTime'];
+                $rqh = $data['response']['numFound'];
+
+            if (!empty($handle_out))
+                fputcsv ( $handle_out, array ($d, $t, $c, $hits, $qt, $rqh, $rqt) );
+
 			//}
 		} else {
 			fclose($handle);
@@ -126,7 +141,8 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 		$loop_duration=0;
 	}
 }
-
+if (!empty($handle_out))
+    fclose($handle_out);
 verbose($solr->getCollection() . ' - Queries end', $verbose);
 
 
