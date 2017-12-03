@@ -7,7 +7,6 @@ function usage() {
 	exit(-1);
 }
 
-
 $options = getopt("i:c:");
 
 $param_file = isset($options['i']) ? $options['i'] : 'query.ini';
@@ -62,16 +61,13 @@ if (!empty($output_file))
     $handle_out = fopen($output_file, 'a');
 
 $loop_start_time = time();
+$ndx = 0;
 while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 
 	$file_loop_cnt = 0;
 	$file_cnt++;
 
 	if ($handle==0) {
-		if ($random)
-			$ndx = rand(0, count($files)-1);
-		else
-			$ndx = ($file_loop_cnt == 0) ? 0 : $ndx + 1;
 		$handle = fopen(realpath($files[$ndx]), "r");
 		if (!$handle) exit(1);
 	}
@@ -81,7 +77,7 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			$pause = false;
 			verbose($solr->getCollection() . ' - Pause ends', $verbose);
 		}
-		if (($line = fgets($handle)) !== false) {
+		while (($line = fgets($handle)) !== false) {
             $line = trim($line);
             verbose($solr->getCollection() . ' - ' . $line, $verbose);
 			$line_items = explode(' ', $line);
@@ -122,12 +118,12 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
                 fputcsv ( $handle_out, array ($d, $t, $c, $hits, $qt, $rqh, $rqt) );
 
 			//}
-		} else {
-			fclose($handle);
-			$handle = 0;
-			$file_loop_cnt++;
-			$file_cnt++;
-		}
+
+        }
+        fclose($handle);
+        $handle = 0;
+        $file_loop_cnt++;
+        $file_cnt++;
 	} else {
 		if (!$pause) {
 			$pause = true;
@@ -140,10 +136,15 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 		$loop_start_time = time();
 		$loop_duration=0;
 	}
+
+    if ($random)
+        $ndx = rand(0, count($files)-1);
+    else
+        $ndx = ($ndx>=count($files)-1) ? 0 : $ndx + 1;
+
 }
 if (!empty($handle_out))
     fclose($handle_out);
 verbose($solr->getCollection() . ' - Queries end', $verbose);
-
 
 ?>
