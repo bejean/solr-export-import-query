@@ -77,6 +77,9 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 			else
 				$ndx = ($loop_count == 0 && $file_loop_cnt == 0) ? 0 : $ndx + 1;
 
+			if ($ndx>count($files)-1)
+			    break;
+
 			verbose('Read data in : ' . $files[$ndx], $verbose);
 			$content= file_get_contents($files[$ndx]);
 			$docs = json_decode($content);
@@ -106,7 +109,10 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 
 			verbose($solr->getCollection() . ' - Post documents [' . $file_cnt . '/' . count($docs) . ' docs/' . strlen($content) . ' bytes]', $verbose);
 
-			$solr->post_binarydata($content);
+			$result = json_decode(json_encode($solr->post_binarydata($content)),true);
+            if ($result['responseHeader']['status']!=0) {
+                //$e = 1;
+            }
 			$file_cnt++;
 			$file_loop_cnt++;
 
@@ -132,6 +138,7 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
 	}
 	$loop_count++;
 }
+$solr->commit();
 
 verbose($solr->getCollection() . ' - Commit', $verbose);
 if ($commit_final) $solr->commit();

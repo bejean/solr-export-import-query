@@ -101,7 +101,7 @@ while(($data = $solr->get($solr_params)) !== false) {
 		else
 			$end_of_index = ($doc_cnt == $total_docs);
 
-				if(array_key_exists('_version_',$doc) === true)
+		if(array_key_exists('_version_',$doc) === true)
 			unset($doc['_version_']);
 
 		// Remove un-wanted fields
