@@ -19,6 +19,7 @@ if (empty($collection)) usage();
 $solr_url = getParam('solr_url', $params, $collection, '');
 if (empty($solr_url)) usage();
 
+$skip_slow_queries = getParam('skip_slow_queries', $params, $collection, '0');
 $loop_max_count = getParam('loop_max_count', $params, $collection, '0');
 $loop_time_duration = getParam('loop_time_duration', $params, $collection, '0');
 $loop_time_request_duration = getParam('loop_time_request_duration', $params, $collection, '0');
@@ -88,6 +89,9 @@ while ($loop_max_count==0 || $loop_count<$loop_max_count) {
             $q = $line_items[3];
             $hits = $line_items[4];
             $qt = $line_items[5];
+
+            if (!empty($skip_slow_queries) && intval($qt) >= intval($skip_slow_queries))
+                break;
 
             //$alternative_query_collection = getAlternativeCollectionName(substr($c, 1 , -1));
 			//if ($alternative_query_collection == $collection && $line_items[12] == 'path=/select') {
