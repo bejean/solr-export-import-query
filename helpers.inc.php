@@ -60,5 +60,13 @@ function GetAlternativeQuery($query, $default_collection = '') {
 	return $query;
 }
 
-
+function getDocSize($doc) {
+    $serializedDoc = serialize($doc);
+    if (function_exists('mb_strlen')) {
+        $size = mb_strlen($serializedDoc, '8bit');
+    } else {
+        $size = strlen($serializedDoc);
+    }
+    return $size;
+}
 ?>

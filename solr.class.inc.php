@@ -137,7 +137,19 @@ class Solr
 		}
 	}
 
-	/**
+    public function getUrl($query)
+    {
+        $ch = $this->init_curl();    /* Initialize curl */
+
+        //Set output type
+        $query['wt'] = 'json';
+
+        //Set URL
+        return $this->_url . 'select?' . preg_replace('/%5B(?:[0-9]|[1-9][0-9]+)%5D=/', '=',http_build_query($query));
+    }
+
+
+    /**
 	 *  posts data to a solr database and optionally commits data
 	 *
 	 * @param array $data - associative (key/value pair) array of solr data
