@@ -14,7 +14,11 @@ function verbose($msg, $verbose) {
 }
 
 function trace($msg) {
-        print (date('G:i:s') . " - "  . $msg . "\n");
+    print (date('G:i:s') . " - "  . $msg . "\n");
+}
+
+function info($msg) {
+    print (date('G:i:s') . " - "  . $msg . "\n");
 }
 
 function getParam($name, $params, $collection, $default = '') {
@@ -69,4 +73,17 @@ function getDocSize($doc) {
     }
     return $size;
 }
+
+function recursive_unset(&$array, $unwanted_key) {
+    $unwanted_key = trim($unwanted_key);
+    if (array_key_exists($unwanted_key, $array) === true)
+        unset($array[$unwanted_key]);
+
+    foreach ($array as $key => &$value) {
+        if (($key=='_childDocuments_' || is_numeric($key)) && is_array($value)) {
+             recursive_unset($value, $unwanted_key);
+        }
+    }
+}
+
 ?>

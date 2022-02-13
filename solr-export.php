@@ -3,13 +3,13 @@ include ('helpers.inc.php');
 include ('solr.class.inc.php');
 
 function usage() {
-	print ('php solr-export.php -i inifile.ini -c collection');
+	print ('php solr-export.php -i inifile.ini -c collection [-p profil]');
 	exit(-1);
 }
 
 date_default_timezone_set('Europe/Paris');
 
-$options = getopt("i:c:");
+$options = getopt("i:p:c:");
 
 // ini file
 $param_file = isset($options['i']) ? $options['i'] : 'export.ini';
@@ -20,36 +20,44 @@ $params = parse_ini_file($param_file, true);
 $collection = isset($options['c']) ? $options['c'] : '';
 if (empty($collection)) usage();
 
+// profil
+$profil = isset($options['p']) ? $options['p'] : '';
+if (empty($profil)) $profil=$collection;
 
-$solr_url = getParam('solr_url', $params, $collection, '');
+
+$solr_url = getParam('solr_url', $params, $profil, '');
 if (empty($solr_url)) usage();
 
-$verbose = (getParam('verbose', $params, $collection, '0') == '1');
+$verbose = (getParam('verbose', $params, $profil, '0') == '1');
+$remove_child = (getParam('remove_child', $params, $profil, '0') == '1');
 
-$fl = getParam('fl', $params, $collection, '*');
-$q = getParam('q', $params, $collection, '*:*');
-$fq = getParam('fq', $params, $collection, '');
-$start = getParam('start', $params, $collection, '0');
-$rows = getParam('rows', $params, $collection, '10');
-$max_rows = getParam('max_rows', $params, $collection, '0');
-$json_max_size = getParam('json_max_size', $params, $collection, $max_rows);
-$json_max_byte_size = getParam('json_max_byte_size', $params, $collection, '0');
-$unique_key = getParam('unique_key', $params, $collection, '');
+$fl = getParam('fl', $params, $profil, '*');
+$q = getParam('q', $params, $profil, '*:*');
+$extra_params = getParam('extra_params', $params, $profil, '');
+$fq = getParam('fq', $params, $profil, '');
+$start = getParam('start', $params, $profil, '0');
+$rows = getParam('rows', $params, $profil, '10');
+$max_rows = getParam('max_rows', $params, $profil, '0');
+$json_max_size = getParam('json_max_size', $params, $profil, $max_rows);
+$json_max_byte_size = getParam('json_max_byte_size', $params, $profil, '0');
+$unique_key = getParam('unique_key', $params, $profil, '');
+$extra_data = getParam('extra_data', $params, $profil, '');
 
-$fl_force_ignore = explode(',', getParam('fl_force_ignore', $params, $collection, ''));
-$fl_force_empty = explode(',', getParam('fl_force_empty', $params, $collection, ''));
+$fl_force_ignore = explode(',', getParam('fl_force_ignore', $params, $profil, ''));
+$fl_force_empty = explode(',', getParam('fl_force_empty', $params, $profil, ''));
 
-$child_collection = getParam('child_collection', $params, $collection, '');
-$child_join_field = getParam('child_join_field', $params, $collection, '');
-$child_copy_field = getParam('child_copy_field', $params, $collection, '');
-$child_uniq_field = getParam('child_uniq_field', $params, $collection, '');
-$child_type_field = getParam('child_type_field', $params, $collection, '');
-$child_only = (getParam('child_only', $params, $collection, '0') == '1');
+$child_collection = getParam('child_collection', $params, $profil, '');
+$child_join_field = getParam('child_join_field', $params, $profil, '');
+$child_copy_field = getParam('child_copy_field', $params, $profil, '');
+$child_uniq_field = getParam('child_uniq_field', $params, $profil, '');
+$child_type_field = getParam('child_type_field', $params, $profil, '');
+$child_only = (getParam('child_only', $params, $profil, '0') == '1');
 
-$output_dir = getParam('output_dir', $params, $collection, './data_export');
+$output_dir = getParam('output_dir', $params, $profil, './data_export');
 if (empty($output_dir)) usage();
 if (!file_exists($output_dir)) error("$output_dir Output directory doesn't exist !");
-
+$output_dir.='/'.$collection;
+if (!file_exists($output_dir)) mkdir($output_dir);
 
 /* Query Parameters for search query */
 $solr_params = array(
@@ -60,6 +68,14 @@ $solr_params = array(
 	'rows' => $rows
 );
 
+if (!empty($extra_params)) {
+    $ps = explode('&', $extra_params);
+    foreach ($ps as $p) {
+        $ptokens = explode('=', $p);
+        $solr_params[$ptokens[0]] = $ptokens[1];
+    }
+}
+
 if ($start='*') {
 	if (empty($unique_key)) usage();
 	$solr_params['cursorMark'] = '*';
@@ -67,7 +83,6 @@ if ($start='*') {
 }
 else
 	$solr_params['start'] = $start;
-
 
 /**********************************************************/
 // Procedural execution steps - edit at your own risk
@@ -84,9 +99,10 @@ $doc_max_byte_size=0;
 $doc_max_byte_size_id='';
 $total_docs=0;
 $start_time = time();
+sleep(1);
 $doc_read_cnt=0;
 $last_exported_key = '';
-					  
+$last_mn_count = -1;
 
 $solr = new Solr($solr_url, $collection);
 if (!$solr) error("Cannot create Solr object");
@@ -142,14 +158,33 @@ while(!$end_of_index) {
         else
             $end_of_index = ($doc_cnt >= $total_docs);
 
-        if (array_key_exists('_version_', $doc) === true)
-            unset($doc['_version_']);
+        if (array_key_exists('childrens', $doc) === true)
+            if ($remove_child)
+                unset($doc['childrens']);
+            else {
+                $doc['_childDocuments_'] = $doc['childrens'];
+                unset($doc['childrens']);
+            }
+
+        if (!empty($extra_data)) {
+            if (str_contains($extra_data, '$RAMDOM$')) {
+                $a = str_replace('$RAMDOM$', rand(1, 10), $extra_data);
+            } else {
+                $a = $extra_data;
+            }
+            $doc = array_merge($doc,json_decode($a, true));
+        }
+        recursive_unset($doc, '_version_');
+        recursive_unset($doc, '_root_');
+        recursive_unset($doc, '_nest_path_');
+        recursive_unset($doc, '_nest_parent_');
+        //if (array_key_exists('_version_', $doc) === true)
+        //    unset($doc['_version_']);
 
         // Remove un-wanted fields
         if (count($fl_force_ignore) > 0)
             foreach ($fl_force_ignore as $field)
-                if (array_key_exists(trim($field), $doc) === true)
-                    unset($doc[trim($field)]);
+                recursive_unset($doc, $field);
 
         if (count($fl_force_empty) > 0)
             foreach ($fl_force_empty as $field)
@@ -243,12 +278,21 @@ while(!$end_of_index) {
             $output_doc_array[] = $doc;
 
         if (($json_size >= $json_max_size) || ($json_max_byte_size>0 && ($json_byte_size >= $json_max_byte_size)) || $end_of_index) {
-            $elapsed_time = (time() - $start_time) / 60;
+            $current_time = time();
+            $elapsed_time = ($current_time - $start_time) / 60;
+            $mn_count = floor($elapsed_time);
             $json_cnt++;
             $file_name = $output_dir . '/' . $collection . '-' . $json_cnt . '.json';
             if ($json_max_byte_size>0 && ($json_byte_size >= $json_max_byte_size))
                 verbose($solr->getCollection() . ' - Write json file due to json max byte size reached - doc count : ' . $json_size, $verbose);
             verbose($solr->getCollection() . ' - Write json file [' . $file_name . '] - Doc count : ' . $doc_cnt. '/' . $total_docs . ' - Elapsed time : ' . round($elapsed_time, 2) . ' mn - Remaining time = ' . round((($elapsed_time/$doc_cnt) * ($total_docs - $doc_cnt)), 2) . ' mn', $verbose);
+            $remaining_time = $elapsed_time / $doc_cnt * ($total_docs - $doc_cnt);
+            if ($last_mn_count==-1 || $mn_count > $last_mn_count) {
+                info('Elapsed time (mn) : ' . floor($elapsed_time));
+                info('Processed docs : ' . $doc_cnt . ' / ' . $total_docs . ' (' . floor($doc_cnt / $elapsed_time) . ' doc/mn)');
+                info('Remaining time : ' . floor($remaining_time) . ' mn / ' . ($remaining_time / 60) . ' h');
+                $last_mn_count = $mn_count;
+            }
             file_put_contents($file_name, json_encode($output_doc_array, JSON_PRETTY_PRINT));
             unset($output_doc_array);
             $output_doc_array = array();
@@ -281,12 +325,19 @@ while(!$end_of_index) {
 //print_r ($data); 
 
 if ($json_size > 0) {
-    $elapsed_time = (time() - $start_time) / 60;
+    $current_time = time();
+    $elapsed_time = ($current_time - $start_time) / 60;
+    $mn_count = floor($elapsed_time);
     $json_cnt++;
     $file_name = $output_dir . '/' . $collection . '-' . $json_cnt . '.json';
     if ($json_max_byte_size>0 && ($json_byte_size >= $json_max_byte_size))
         verbose($solr->getCollection() . ' - Write json file due to json max byte size reached - doc count : ' . $json_size, $verbose);
     verbose($solr->getCollection() . ' - Write json file [' . $file_name . '] - Doc count : ' . $doc_cnt. '/' . $total_docs . ' - Elapsed time : ' . round($elapsed_time, 2) . ' mn - Remaining time = ' . round((($elapsed_time/$doc_cnt) * ($total_docs - $doc_cnt)), 2) . ' mn', $verbose);
+
+    info('Elapsed time (mn) : ' . floor($elapsed_time));
+    info('Processed docs : ' . $doc_cnt . ' / ' . $total_docs . ' (' . floor($doc_cnt / $elapsed_time) . ' doc/mn)');
+    info('Terminated !');
+
     file_put_contents($file_name, json_encode($output_doc_array, JSON_PRETTY_PRINT));
     unset($output_doc_array);
     $output_doc_array = array();
