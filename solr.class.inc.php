@@ -152,38 +152,36 @@ class Solr
     /**
 	 *  posts data to a solr database and optionally commits data
 	 *
-	 * @param array $data - associative (key/value pair) array of solr data
+	 * @param array $query - associative (key/value pair) array of solr data
 	 * @return array $response - solr response array
 	 * @throws none
 	 */
-	public function post($data, $doc_cnt)
-	{
-		$ch = $this->init_curl();    /* Initialize curl */
+    public function post($query, $retry = false)
+    {
+        $ch = $this->init_curl();    /* Initialize curl */
 
-		//Set update URL
-		$url = $this->_url . 'update';
-		curl_setopt($ch, CURLOPT_URL, $url);
+        //Set output type
+        $query['wt'] = 'json';
 
-		//Configure curl for post
-		$xml = new SimpleXMLElement('<add/>');
-		//print_r($data);
-		$this->array_to_xml($data, $xml);
-		$data_post = $xml->asXML();
+        //Set URL
+        $url = $this->_url . 'select';
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $query);
+        $response = curl_exec($ch);
+        $data = $this->transform($response);
 
-		//print ("=======$doc_cnt\n");
-		//file_put_contents("log/doc-$doc_cnt.xml", $data_post);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $data_post);
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-			'Content-Type: application/xml'
-		));
-
-		//Execute post
-		$resp = curl_exec($ch);
-		//print("resp = $resp\n");
-		$solr_response = simplexml_load_string($resp);
-		return (int)$solr_response->lst->int[0];
-	}
+        if (isset($data['response']) || isset($data['grouped']) || isset($data['facet_counts'])) {
+            return $data;
+        } else {
+            //Sleep and re-try once
+            if ($retry) {
+                sleep(5);
+                $this->get($query, false);
+            }
+            return false;
+        }
+    }
 
 	/**
 	 *  sends a commit statement to solr

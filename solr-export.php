@@ -118,7 +118,7 @@ $end_of_index = false;
 $retry_count = 0;
 while(!$end_of_index) {
 	
-	if (($data = $solr->get($solr_params)) == false) {
+	if (($data = $solr->post($solr_params)) == false) {
 		if ($retry_count>=10) {
 			verbose('Error reading data from Solr - Abort', $verbose);
 			break;
@@ -224,7 +224,7 @@ while(!$end_of_index) {
                 }
             }
 
-            if (($data_child = $solr_child->get($solr_params_child)) !== false) {
+            if (($data_child = $solr_child->post($solr_params_child)) !== false) {
 
                 $output_doc_child_array = array();
                 $child_cnt = 0;
