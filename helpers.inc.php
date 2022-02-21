@@ -86,4 +86,53 @@ function recursive_unset(&$array, $unwanted_key) {
     }
 }
 
-?>
+function leading_tabs_to_spaces ($str) {
+    // replace leading tabs by spaces
+    $separator = "\r\n";
+    $new_str='';
+    foreach(preg_split("/((\r?\n)|(\r\n?))/", $str) as $line) {
+        if (trim($line)=='') {
+            $new_str .= "\n";
+        }
+        else {
+            $arr = str_split($line);
+            $lead = true;
+            $new_line = '';
+            foreach ($arr as $c) {
+                if ($lead) {
+                    if ($c == ' ') {
+                        $new_line .= $c;
+                        continue;
+                    }
+                    if ($c == "\t") {
+                        $new_line .= '    ';
+                        continue;
+                    }
+                    $new_line .= $c;
+                    $lead = false;
+                } else
+                    $new_line .= $c;
+            }
+            $new_str .= rtrim($new_line) . "\n";
+        }
+    }
+    return $new_str;
+}
+
+function insert_before_line_matching ($pattern, $str, $insert) {
+    $ret='';
+    $separator = "\r\n";
+    $done=false;
+    foreach(preg_split("/((\r?\n)|(\r\n?))/", $str) as $line) {
+        if (!$done && preg_match($pattern, $line)) {
+            $ret .= "<!-- upgrade insert start -->\n";
+            foreach(preg_split("/((\r?\n)|(\r\n?))/", $insert) as $line_insert) {
+                $ret .= rtrim($line_insert) . "\n";
+            }
+            $ret .= "<!-- upgrade insert end -->\n";
+            $done=true;
+        }
+        $ret .= rtrim($line) . "\n";
+    }
+    return $ret;
+}

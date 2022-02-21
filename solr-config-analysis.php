@@ -1,43 +1,12 @@
 <?php
+include ('helpers.inc.php');
+include ('helpers-xml.inc.php');
 
 function usage($message = '') {
     if (!empty($message))
         print ('Error : ' . $message . "\n");
-    print ('Usage : php solr-config-analysis.php --conf solr_config_directory [--clean] [--upgrade]');
+    print ('Usage : php solr-config-analysis.php --ini inifile --conf solr_config_directory [--clean] [--upgrade]');
     exit(-1);
-}
-
-function leading_tabs_to_spaces ($str) {
-    // replace leading tabs by spaces
-    $separator = "\r\n";
-    $new_str='';
-    foreach(preg_split("/((\r?\n)|(\r\n?))/", $str) as $line) {
-        if (trim($line)=='') {
-            $new_str .= "\n";
-        }
-        else {
-            $arr = str_split($line);
-            $lead = true;
-            $new_line = '';
-            foreach ($arr as $c) {
-                if ($lead) {
-                    if ($c == ' ') {
-                        $new_line .= $c;
-                        continue;
-                    }
-                    if ($c == "\t") {
-                        $new_line .= '    ';
-                        continue;
-                    }
-                    $new_line .= $c;
-                    $lead = false;
-                } else
-                    $new_line .= $c;
-            }
-            $new_str .= rtrim($new_line) . "\n";
-        }
-    }
-    return $new_str;
 }
 
 function unused_types($schema, $solrconfig) {
@@ -59,37 +28,8 @@ function unused_types($schema, $solrconfig) {
     return array_diff($arr_unused_field_type, $arr_ignore);
 }
 
-function xml_attribute($object, $attribute) {
-    if(isset($object[$attribute]))
-        return (string) $object[$attribute];
-}
 
-function xml_move_node(SimpleXMLElement $to, SimpleXMLElement $from) {
-    $toDom = dom_import_simplexml($to);
-    $fromDom = dom_import_simplexml($from);
-    $toDom->appendChild($toDom->ownerDocument->importNode($fromDom, true));
-}
-
-function xml_remove_nodes($xml, $xpath, $flag_only=false) {
-    $nodes=$xml->xpath($xpath);
-    foreach($nodes as $node) {
-        if ($flag_only) {
-            $node['name']='remove_' . $node['name'];
-        } else {
-            $dom = dom_import_simplexml($node);
-            $dom->parentNode->removeChild($dom);
-        }
-    }
-}
-
-function xml_remove_nodes_attribute($xml, $xpath, $name) {
-    $nodes=$xml->xpath($xpath);
-    foreach($nodes as $node) {
-        unset($node[$name]);
-    }
-}
-
-function xml_upgrade_schema(SimpleXMLElement $schema, SimpleXMLElement $xml_solrconfig) {
+function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement $xml_solrconfig) {
     // schema version
     $schema['version'] = '1.6';
 
@@ -138,36 +78,59 @@ function xml_upgrade_schema(SimpleXMLElement $schema, SimpleXMLElement $xml_solr
     // replace int and tint by pint
     $arr=array('int', 'long', 'float', 'double', 'date');
     foreach($arr as $t) {
+        xml_remove_nodes($schema,"//fieldType[@name='t" . $t . "']", true, 'deprecated');
         $nodes = $schema->xpath("//field[@type='t" . $t . "']");
         foreach ($nodes as $node) {
             $node['type'] = 'p' . $t;
-            $i=1;
         }
+        $nodes = $schema->xpath("//dynamicField[@type='t" . $t . "']");
+        foreach ($nodes as $node) {
+            $node['type'] = 'p' . $t;
+        }
+
+        xml_remove_nodes($schema,"//fieldType[@name='" . $t . "']", true, 'deprecated');
         $nodes = $schema->xpath("//field[@type='" . $t . "']");
         foreach ($nodes as $node) {
             $node['type'] = 'p' . $t;
-            $i=1;
+        }
+        $nodes = $schema->xpath("//dynamicField[@type='" . $t . "']");
+        foreach ($nodes as $node) {
+            $node['type'] = 'p' . $t;
         }
     }
+
+    // remove types inserted for compatibility
+    $arr=array('ignored', 'random', 'binary', 'boolean', 'string', 'pint', 'plong', 'pfloat', 'pdouble', 'pdate');
+    foreach($arr as $t) {
+        xml_remove_nodes($schema,"//fieldType[@name='" . $t . "']", true, 'remove');
+    }
+
+    $xml_str = $schema->asXML();
+
+    // insert
+    if (!empty($params)) {
+        $inserts = explode(',', getParam('insert', $params, 'schema', ''));
+        foreach ($inserts as $insert) {
+            $file = getParam('file', $params, $insert, '');
+            $content = file_get_contents(dirname(__FILE__) . '/' . $file);
+            $where = getParam('insert_before', $params, $insert, '');
+            $xml_str = insert_before_line_matching ($where, $xml_str, $content);
+        }
+    }
+
+    $xml_str = formatXmlString($xml_str);
 
     // format
     $xmlDocument = new DOMDocument('1.0');
     $xmlDocument->preserveWhiteSpace = false;
     $xmlDocument->formatOutput = true;
-
-    $xml_str = $schema->asXML();
-
-    // clean
-    $xml_str = str_replace('<fields>', '', $xml_str);
-    $xml_str = str_replace('</fields>', '', $xml_str);
-    $xml_str = str_replace('<types>', '', $xml_str);
-    $xml_str = str_replace('</types>', '', $xml_str);
-
     $xmlDocument->loadXML($xml_str);
-    return simplexml_load_string($xmlDocument->saveXML());
+    return xml_load_string($xmlDocument->saveXML());
 }
 
-function xml_upgrade_config($xml_solrconfig) {
+function xml_upgrade_config($params, $xml_solrconfig) {
+    $xml_str = $xml_solrconfig->asXML();
+
     // luceneMatchVersion
     $nodes=$xml_solrconfig->xpath('//luceneMatchVersion');
     $nodes[0][0]='8.11.1';
@@ -179,10 +142,16 @@ function xml_upgrade_config($xml_solrconfig) {
         $schemaFactory->addAttribute("class", "ClassicIndexSchemaFactory");
     }
 
+    $xml_str = $xml_solrconfig->asXML();
+
+    // deprecate <checkIntegrityAtMerge>
+    xml_remove_nodes($xml_solrconfig,"//checkIntegrityAtMerge", true, 'deprecated');
+
     // remove implicite handlers
     xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update']", true);
     xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update/json']", true);
     xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update/csv']", true);
+    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update/extract']", true);
     xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/analysis/field']", true);
     xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/analysis/document']", true);
     xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/debug/dump']", true);
@@ -198,32 +167,46 @@ function xml_upgrade_config($xml_solrconfig) {
     xml_remove_nodes_attribute($xml_solrconfig, "//documentCache", "class");
     xml_remove_nodes_attribute($xml_solrconfig, "//queryResultCache", "class");
 
-    /*
-    <initParams path="/update/**,/query,/select,/spell">
-        <lst name="defaults">
-            <str name="df">_text_</str>
-        </lst>
-    </initParams>
-    */
+    $xml_str = $xml_solrconfig->asXML();
 
-    return $xml_solrconfig;
+    // insert
+    if (!empty($params)) {
+        $inserts = explode(',', getParam('insert', $params, 'solrconfig', ''));
+        foreach ($inserts as $insert) {
+            $file = getParam('file', $params, $insert, '');
+            $content = file_get_contents(dirname(__FILE__) . '/' . $file);
+            $where = getParam('insert_before', $params, $insert, '');
+            $xml_str = insert_before_line_matching ($where, $xml_str, $content);
+        }
+    }
+
+    $xml_str = formatXmlString($xml_str);
+
+    // format
+    $xmlDocument = new DOMDocument('1.0');
+    $xmlDocument->preserveWhiteSpace = false;
+    $xmlDocument->formatOutput = true;
+    $xmlDocument->loadXML($xml_str);
+    return xml_load_string($xmlDocument->saveXML());
 }
 
 function xml_clean_schema(SimpleXMLElement $schema, SimpleXMLElement $solrconfig)
 {
     // remove unused type
     $arr_unused_field_type = unused_types($schema, $solrconfig);
-
-    $result=$schema->xpath('//fieldType');
-    foreach($result as $node) {
-        $name = xml_attribute($node, 'name');
-        if (in_array($name, $arr_unused_field_type))
-            $node['name']='remove_' . $name;
+    foreach($arr_unused_field_type as $name) {
+        xml_remove_nodes($schema, "//fieldType[@name='" . $name . "']", true, 'remove');
     }
     return $schema;
 }
 
-$options = getopt("", array('conf:', 'clean', 'upgrade'));
+$options = getopt("", array('conf:', 'ini:', 'clean', 'upgrade'));
+
+// ini file
+$param_file = isset($options['ini']) ? $options['ini'] : '';
+if (!empty($param_file) && !file_exists(dirname(__FILE__) . '/' . $param_file)) usage('ini file not found');
+if (!empty($param_file))
+    $params = parse_ini_file(dirname(__FILE__) . '/' . $param_file, true);
 
 $config_upgrade = isset($options['upgrade']);
 $config_clean = isset($options['clean']);
@@ -247,17 +230,35 @@ if (!file_exists($solrconfig_file))
 
 $xml_str = file_get_contents($schema_file);
 $xml_str = leading_tabs_to_spaces($xml_str);
+// clean
+$xml_str = str_replace('<fields>', '', $xml_str);
+$xml_str = str_replace('</fields>', '', $xml_str);
+$xml_str = str_replace('<types>', '', $xml_str);
+$xml_str = str_replace('</types>', '', $xml_str);
 $xml_str = str_replace('<fieldtype', '<fieldType', $xml_str);
 $xml_str = str_replace('</fieldtype', '</fieldType', $xml_str);
-$xml = simplexml_load_string($xml_str);
+$xml = xml_load_string($xml_str);
 if ($xml===false)
     usage("unable to parse $schema_file");
 
+$xmlDocument = new DOMDocument('1.0');
+$xmlDocument->preserveWhiteSpace = false;
+$xmlDocument->formatOutput = true;
+$xmlDocument->loadXML(formatXmlString($xml_str));
+xmlstr_save($xmlDocument->saveXML(),$config_dir . '/schema-original.xml');
+
 $xml_config_str = file_get_contents($solrconfig_file);
 $xml_config_str = leading_tabs_to_spaces($xml_config_str);
-$xml_solrconfig = simplexml_load_string($xml_config_str);
+$xml_solrconfig = xml_load_string($xml_config_str);
+
 if ($xml_solrconfig===false)
     usage("unable to parse $solrconfig_file");
+
+$xmlDocument = new DOMDocument('1.0');
+$xmlDocument->preserveWhiteSpace = false;
+$xmlDocument->formatOutput = true;
+$xmlDocument->loadXML(formatXmlString($xml_config_str));
+xmlstr_save($xmlDocument->saveXML(),$config_dir . '/solrconfig-original.xml');
 
 // copyField
 $result=$xml->xpath('//copyField');
@@ -336,16 +337,16 @@ if (count(array_diff($arr_field_not_stored, $arr_copy_field))!=0 || count($arr_f
 }
 echo "unique_key=" . $unique_key[0] . "\n";
 
+if ($config_upgrade) {
+    $xml = xml_upgrade_schema($params, $xml, $xml_solrconfig);
+    $xml_solrconfig = xml_upgrade_config($params, $xml_solrconfig);
+}
+
 if ($config_clean) {
     $xml = xml_clean_schema($xml, $xml_solrconfig);
 }
 
-if ($config_upgrade) {
-    $xml = xml_upgrade_schema($xml, $xml_solrconfig);
-    $xml_solrconfig = xml_upgrade_config($xml_solrconfig);
-}
-
 if ($config_clean || $config_upgrade) {
-    $xml->asXML($config_dir . '/schema-new.xml');
-    $xml_solrconfig->asXML($config_dir . '/solrconfig-new.xml');
+    xmlstr_save($xml->asXML(),$config_dir . '/schema-new.xml');
+    xmlstr_save($xml_solrconfig->asXML(),$config_dir . '/solrconfig-new.xml');
 }
