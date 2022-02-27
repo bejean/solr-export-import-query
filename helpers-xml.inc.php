@@ -12,7 +12,7 @@ function xml_load_string($str) {
 function xmlstr_save($str, $file, $backup=true) {
     // file exists ? -> save
     if ($backup && file_exists($file)) {
-        $to = $file . date('Ymd-His');
+        $to = $file . '.' . date('Ymd-His');
         print ("File $file exists, saving to $to");
         copy($file, $to);
     }
@@ -50,12 +50,16 @@ function xml_move_node(SimpleXMLElement $to, SimpleXMLElement $from) {
 function xml_remove_nodes($xml, $xpath, $flag_only=false, $flag_message='remove') {
     $nodes=$xml->xpath($xpath);
     foreach($nodes as $node) {
-        $dom = dom_import_simplexml($node);
-        if ($flag_only) {
-            clone_dom_node($dom, $flag_message . '_' . $dom->tagName );
-        } else {
-            $dom->parentNode->removeChild($dom);
-        }
+        xml_remove_node($node, $flag_only, $flag_message);
+    }
+}
+
+function xml_remove_node($node, $flag_only=false, $flag_message='remove') {
+    $dom = dom_import_simplexml($node);
+    if ($flag_only) {
+        clone_dom_node($dom, $flag_message . '_' . $dom->tagName );
+    } else {
+        $dom->parentNode->removeChild($dom);
     }
 }
 

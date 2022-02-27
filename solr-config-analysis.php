@@ -28,7 +28,7 @@ function unused_types($schema, $solrconfig) {
 }
 
 
-function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement $xml_solrconfig) {
+function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement $xml_solrconfig, $is_first_pass) {
     // schema version
     $target_schema_version = getParam('target_schema_version', $params, 'general', '1.6');
     $schema['version'] = $target_schema_version;
@@ -54,10 +54,10 @@ function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement 
     // FlattenGraphFilterFactory
     $results=$schema->xpath('//fieldType');
     foreach($results as $node) {
-        if ($node->count()==1){
-            $nodes_WDG=$node->xpath("analyzer/filter[@class='solr.WordDelimiterGraphFilterFactory']");
-            $nodes_SG=$node->xpath("analyzer/filter[@class='solr.SynonymGraphFilterFactory']");
-            if (count($nodes_WDG)+count($nodes_SG)>0) {
+        $nodes_WDG=$node->xpath("analyzer/filter[@class='solr.WordDelimiterGraphFilterFactory']");
+        $nodes_SG=$node->xpath("analyzer/filter[@class='solr.SynonymGraphFilterFactory']");
+        if (count($nodes_WDG)+count($nodes_SG)>0) {
+            if ($node->count()==1){
                 // duplicate single analyzer in two analyzers for index and query
                 $dom_node = dom_import_simplexml($node);
                 $dom_analyzer = dom_import_simplexml($node->analyzer);
@@ -66,11 +66,15 @@ function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement 
                 $analyzers=$node->xpath("analyzer");
                 $analyzers[0]['type']='index';
                 $analyzers[1]['type']='query';
-
-                // add FlattenGraphFilterFactory filter to index analyzer
-                $analyzers=$node->xpath("analyzer[@type='index']");
-                $filter = $analyzers[0]->addChild('filter', '');
-                $filter->addAttribute("class", "solr.FlattenGraphFilterFactory");
+            }
+            $index_analyzer=$node->xpath("analyzer[@type='index']");
+            if ($index_analyzer) {
+                $flatten_filter=$node->xpath("filter[@class='solr.FlattenGraphFilterFactory']");
+                if (!$flatten_filter) {
+                    // add FlattenGraphFilterFactory filter to index analyzer
+                    $flatten_filter = $index_analyzer[0]->addChild('filter', '');
+                    $flatten_filter->addAttribute("class", "solr.FlattenGraphFilterFactory");
+                }
             }
         }
     }
@@ -100,21 +104,25 @@ function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement 
     }
 
     // remove types inserted for compatibility
-    $arr=array('ignored', 'random', 'binary', 'boolean', 'string', 'pint', 'plong', 'pfloat', 'pdouble', 'pdate');
-    foreach($arr as $t) {
-        xml_remove_nodes($schema,"//fieldType[@name='" . $t . "']", true);
+    if ($is_first_pass) {
+        $arr = array('ignored', 'random', 'binary', 'boolean', 'string', 'pint', 'plong', 'pfloat', 'pdouble', 'pdate');
+        foreach ($arr as $t) {
+            xml_remove_nodes($schema, "//fieldType[@name='" . $t . "']", true);
+        }
     }
 
     $xml_str = $schema->asXML();
 
     // insert
-    if (!empty($params)) {
-        $inserts = explode(',', getParam('insert', $params, 'schema', ''));
-        foreach ($inserts as $insert) {
-            $file = getParam('file', $params, $insert, '');
-            $content = file_get_contents(dirname(__FILE__) . '/' . $file);
-            $where = getParam('insert_before', $params, $insert, '');
-            $xml_str = insert_before_line_matching ($where, $xml_str, $content);
+    if ($is_first_pass) {
+        if (!empty($params)) {
+            $inserts = explode(',', getParam('insert', $params, 'schema', ''));
+            foreach ($inserts as $insert) {
+                $file = getParam('file', $params, $insert, '');
+                $content = file_get_contents(dirname(__FILE__) . '/' . $file);
+                $where = getParam('insert_before', $params, $insert, '');
+                $xml_str = insert_before_line_matching($where, $xml_str, $content);
+            }
         }
     }
 
@@ -128,7 +136,14 @@ function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement 
     return xml_load_string($xmlDocument->saveXML());
 }
 
-function xml_upgrade_config($params, $xml_solrconfig) {
+function isTargetVersion($params, $xml_solrconfig) {
+    // luceneMatchVersion
+    $target_lucene_version = getParam('target_lucene_version', $params, 'general', '');
+    $nodes=$xml_solrconfig->xpath('//luceneMatchVersion');
+    return ($nodes[0][0]==$target_lucene_version);
+}
+
+function xml_upgrade_config($params, $xml_solrconfig, $is_first_pass) {
     // luceneMatchVersion
     $target_lucene_version = getParam('target_lucene_version', $params, 'general', '');
     $nodes=$xml_solrconfig->xpath('//luceneMatchVersion');
@@ -141,8 +156,18 @@ function xml_upgrade_config($params, $xml_solrconfig) {
         $schemaFactory->addAttribute("class", "ClassicIndexSchemaFactory");
     }
 
+    // temporary deprecated clustering lib
+    $results=$xml_solrconfig->xpath('//lib');
+    foreach($results as $node) {
+        $dir = xml_attribute($node, 'dir');
+        $regex = xml_attribute($node, 'regex');
+        if (str_contains($dir, 'clustering') || str_contains($regex, 'clustering')) {
+            xml_remove_node($node, true, 'temporary_deprecated');
+        }
+    }
+
     // deprecate <jmx>
-    xml_remove_nodes($xml_solrconfig,"//jmx']", true, 'deprecated');
+    xml_remove_nodes($xml_solrconfig,"//jmx", true, 'deprecated');
 
     // deprecate <checkIntegrityAtMerge>
     xml_remove_nodes($xml_solrconfig,"//checkIntegrityAtMerge", true, 'deprecated');
@@ -170,13 +195,15 @@ function xml_upgrade_config($params, $xml_solrconfig) {
     $xml_str = $xml_solrconfig->asXML();
 
     // insert
-    if (!empty($params)) {
-        $inserts = explode(',', getParam('insert', $params, 'solrconfig', ''));
-        foreach ($inserts as $insert) {
-            $file = getParam('file', $params, $insert, '');
-            $content = file_get_contents(dirname(__FILE__) . '/' . $file);
-            $where = getParam('insert_before', $params, $insert, '');
-            $xml_str = insert_before_line_matching ($where, $xml_str, $content);
+    if ($is_first_pass) {
+        if (!empty($params)) {
+            $inserts = explode(',', getParam('insert', $params, 'solrconfig', ''));
+            foreach ($inserts as $insert) {
+                $file = getParam('file', $params, $insert, '');
+                $content = file_get_contents(dirname(__FILE__) . '/' . $file);
+                $where = getParam('insert_before', $params, $insert, '');
+                $xml_str = insert_before_line_matching($where, $xml_str, $content);
+            }
         }
     }
 
@@ -220,14 +247,24 @@ if (!file_exists($config_dir))
 if (!is_dir($config_dir))
     usage("$config_dir is not a directory");
 
-$source_ext = $options['ext'] ?? getParam('source_ext', $params, 'general', '');
+$source_ext = $options['ext'] ?? getParam('default_source_ext', $params, 'general', '');
 if (empty($source_ext)) usage("Missing --ext parameter");
 
-$schema_file = $config_dir . '/schema.' . $source_ext;
+print ("=======================================\n");
+print ("Input directory\n");
+print ("    $config_dir\n");
+
+print ("Input files\n");
+
+$schema_file = 'schema.' . $source_ext;
+print ("    $schema_file\n");
+$schema_file = $config_dir . '/' . $schema_file;
 if (!file_exists($schema_file))
     usage("$schema_file doesn't exist");
 
-$solrconfig_file = $config_dir . '/solrconfig.' . $source_ext;
+$solrconfig_file = 'solrconfig.' . $source_ext;
+print ("    $solrconfig_file\n");
+$solrconfig_file = $config_dir . '/' . $solrconfig_file;
 if (!file_exists($solrconfig_file))
     usage("$solrconfig_file doesn't exist");
 
@@ -248,7 +285,6 @@ $xmlDocument = new DOMDocument('1.0');
 $xmlDocument->preserveWhiteSpace = false;
 $xmlDocument->formatOutput = true;
 $xmlDocument->loadXML(formatXmlString($xml_str));
-xmlstr_save($xmlDocument->saveXML(),$config_dir . '/schema.' . $source_ext . '.pretty', false);
 
 $xml_config_str = file_get_contents($solrconfig_file);
 $xml_config_str = leading_tabs_to_spaces($xml_config_str);
@@ -261,7 +297,13 @@ $xmlDocument = new DOMDocument('1.0');
 $xmlDocument->preserveWhiteSpace = false;
 $xmlDocument->formatOutput = true;
 $xmlDocument->loadXML(formatXmlString($xml_config_str));
+
+// save pretty version of input files
+print ("save pretty version of input files\n");
+xmlstr_save($xmlDocument->saveXML(),$config_dir . '/schema.' . $source_ext . '.pretty', false);
 xmlstr_save($xmlDocument->saveXML(),$config_dir . '/solrconfig' . $source_ext . '.pretty', false);
+
+$is_first_pass = !isTargetVersion($params, $xml_solrconfig);
 
 // copyField
 $result=$xml->xpath('//copyField');
@@ -317,8 +359,7 @@ $unique_key=$xml->xpath('//uniqueKey');
 
 $arr_unused_field_type = unused_types($xml, $xml_solrconfig);
 
-echo "=======================================\n";
-echo $config_dir . "\n\n";
+echo "---------------------------------------\n";
 echo "uniqueKey : " . $unique_key[0] . "\n\n";
 echo "fields : " . implode(', ' ,$arr_field_stored) . ', ' . implode(', ' ,$arr_field_not_stored) . "\n\n";
 echo "stored || docValues : " . implode(', ' ,$arr_field_stored) . "\n\n";
@@ -336,8 +377,8 @@ echo "fl=".implode(',' ,array_diff(array_merge($arr_field_stored,$arr_field_not_
 echo "unique_key=" . $unique_key[0] . "\n";
 
 if ($config_upgrade) {
-    $xml = xml_upgrade_schema($params, $xml, $xml_solrconfig);
-    $xml_solrconfig = xml_upgrade_config($params, $xml_solrconfig);
+    $xml = xml_upgrade_schema($params, $xml, $xml_solrconfig, $is_first_pass);
+    $xml_solrconfig = xml_upgrade_config($params, $xml_solrconfig, $is_first_pass);
 }
 
 if ($config_clean) {
