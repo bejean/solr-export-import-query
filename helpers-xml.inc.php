@@ -9,8 +9,14 @@ function xml_load_string($str) {
     return simplexml_load_string($str);
 }
 
-function xmlstr_save($str, $file) {
-    //$str = $xml->asXML();
+function xmlstr_save($str, $file, $backup=true) {
+    // file exists ? -> save
+    if ($backup && file_exists($file)) {
+        $to = $file . date('Ymd-His');
+        print ("File $file exists, saving to $to");
+        copy($file, $to);
+    }
+
     $str = preg_replace('/__(#[0-9]+)__/', '&$1;', $str);
     file_put_contents($file, $str);
 }

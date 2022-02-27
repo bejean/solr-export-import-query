@@ -11,7 +11,6 @@ function usage($message = '') {
 
 function unused_types($schema, $solrconfig) {
     $result = $schema->xpath('//fieldType');
-    $arr_unused_field_type=array();
     $arr_ignore=array('text_general','string','strings','boolean','booleans','pint','pfloat','plong','pdouble','pints','pfloats','plongs','pdoubles','random','ignored','pdate','pdates','binary','rank');$arr_unused_field_type = array();
     foreach($result as $node) {
         $name = xml_attribute($node,'name');
@@ -31,7 +30,8 @@ function unused_types($schema, $solrconfig) {
 
 function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement $xml_solrconfig) {
     // schema version
-    $schema['version'] = '1.6';
+    $target_schema_version = getParam('target_schema_version', $params, 'general', '1.6');
+    $schema['version'] = $target_schema_version;
 
     // remove deprecated enablePositionIncrements filter attribute
     xml_remove_nodes_attribute($schema,"//filter[@enablePositionIncrements]", 'enablePositionIncrements');
@@ -129,11 +129,10 @@ function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement 
 }
 
 function xml_upgrade_config($params, $xml_solrconfig) {
-    $xml_str = $xml_solrconfig->asXML();
-
     // luceneMatchVersion
+    $target_lucene_version = getParam('target_lucene_version', $params, 'general', '');
     $nodes=$xml_solrconfig->xpath('//luceneMatchVersion');
-    $nodes[0][0]='8.11.1';
+    $nodes[0][0]=$target_lucene_version;
 
     // Add <config><schemaFactory class="ClassicIndexSchemaFactory"/>
     $schemaFactory=$xml_solrconfig->xpath("//schemaFactory");
@@ -141,8 +140,6 @@ function xml_upgrade_config($params, $xml_solrconfig) {
         $schemaFactory = $xml_solrconfig->addChild('schemaFactory', '');
         $schemaFactory->addAttribute("class", "ClassicIndexSchemaFactory");
     }
-
-    $xml_str = $xml_solrconfig->asXML();
 
     // deprecate <checkIntegrityAtMerge>
     xml_remove_nodes($xml_solrconfig,"//checkIntegrityAtMerge", true, 'deprecated');
@@ -200,19 +197,19 @@ function xml_clean_schema(SimpleXMLElement $schema, SimpleXMLElement $solrconfig
     return $schema;
 }
 
-$options = getopt("", array('conf:', 'ini:', 'clean', 'upgrade'));
+$options = getopt("", array('conf:', 'ini:', 'ext:', 'clean', 'upgrade'));
 
 // ini file
 $param_file = isset($options['ini']) ? $options['ini'] : '';
-if (!empty($param_file) && !file_exists(dirname(__FILE__) . '/' . $param_file)) usage('ini file not found');
-if (!empty($param_file))
-    $params = parse_ini_file(dirname(__FILE__) . '/' . $param_file, true);
+if (empty($param_file)) usage("Missing --ini parameter");
+if (!file_exists(dirname(__FILE__) . '/' . $param_file)) usage('ini file not found');
+$params = parse_ini_file(dirname(__FILE__) . '/' . $param_file, true);
 
 $config_upgrade = isset($options['upgrade']);
 $config_clean = isset($options['clean']);
 
 $config_dir = $options['conf'] ?? '';
-if (empty($config_dir)) usage("Missing -c parameter");
+if (empty($config_dir)) usage("Missing --conf parameter");
 
 if (!file_exists($config_dir))
     usage("$config_dir doesn't exist");
@@ -220,11 +217,14 @@ if (!file_exists($config_dir))
 if (!is_dir($config_dir))
     usage("$config_dir is not a directory");
 
-$schema_file = $config_dir . '/schema.xml';
+$source_ext = $options['ext'] ?? getParam('source_ext', $params, 'general', '');
+if (empty($source_ext)) usage("Missing --ext parameter");
+
+$schema_file = $config_dir . '/schema.' . $source_ext;
 if (!file_exists($schema_file))
     usage("$schema_file doesn't exist");
 
-$solrconfig_file = $config_dir . '/solrconfig.xml';
+$solrconfig_file = $config_dir . '/solrconfig.' . $source_ext;
 if (!file_exists($solrconfig_file))
     usage("$solrconfig_file doesn't exist");
 
@@ -245,7 +245,7 @@ $xmlDocument = new DOMDocument('1.0');
 $xmlDocument->preserveWhiteSpace = false;
 $xmlDocument->formatOutput = true;
 $xmlDocument->loadXML(formatXmlString($xml_str));
-xmlstr_save($xmlDocument->saveXML(),$config_dir . '/schema-original.xml');
+xmlstr_save($xmlDocument->saveXML(),$config_dir . '/schema.' . $source_ext . '.pretty', false);
 
 $xml_config_str = file_get_contents($solrconfig_file);
 $xml_config_str = leading_tabs_to_spaces($xml_config_str);
@@ -258,7 +258,7 @@ $xmlDocument = new DOMDocument('1.0');
 $xmlDocument->preserveWhiteSpace = false;
 $xmlDocument->formatOutput = true;
 $xmlDocument->loadXML(formatXmlString($xml_config_str));
-xmlstr_save($xmlDocument->saveXML(),$config_dir . '/solrconfig-original.xml');
+xmlstr_save($xmlDocument->saveXML(),$config_dir . '/solrconfig' . $source_ext . '.pretty', false);
 
 // copyField
 $result=$xml->xpath('//copyField');
@@ -308,8 +308,6 @@ foreach($result as $node) {
 
     if ($stored_field=='false' && $docValues_field=='true')
         $arr_field_docValues_only[]=$name;
-
-    //echo "Field : $name - Stored : $stored_field - docValues : $docValues_field\n";
 }
 
 $unique_key=$xml->xpath('//uniqueKey');
@@ -328,13 +326,10 @@ echo "stored only: " . implode(', ' ,$arr_field_stored_only) . "\n\n";
 echo "WARNING - docValues only: " . implode(', ' ,$arr_field_docValues_only) . "\n\n";
 echo "WARNING - unused types : " . implode(', ' ,$arr_unused_field_type) . "\n\n";
 echo "---------------------------------------\n";
-if (count(array_diff($arr_field_not_stored, $arr_copy_field))!=0 || count($arr_field_docValues_only)!=0) {
-    echo "fl_force_ignore=\n";
-    echo "fl=".implode(',' ,$arr_field_stored) . ',' . implode(',' ,$arr_field_not_stored) . "\n";
-} else {
-    echo "fl_force_ignore=" . implode(',' ,$arr_copy_field). "\n";
-    echo "fl=\n";
-}
+
+echo "fl_force_ignore=" . implode(',' ,$arr_copy_field). "\n";
+echo "fl=".implode(',' ,array_diff(array_merge($arr_field_stored,$arr_field_not_stored),$arr_copy_field)) . "\n";
+
 echo "unique_key=" . $unique_key[0] . "\n";
 
 if ($config_upgrade) {
@@ -347,6 +342,6 @@ if ($config_clean) {
 }
 
 if ($config_clean || $config_upgrade) {
-    xmlstr_save($xml->asXML(),$config_dir . '/schema-new.xml');
-    xmlstr_save($xml_solrconfig->asXML(),$config_dir . '/solrconfig-new.xml');
+    xmlstr_save($xml->asXML(),$config_dir . '/schema.xml');
+    xmlstr_save($xml_solrconfig->asXML(),$config_dir . '/solrconfig.xml');
 }
