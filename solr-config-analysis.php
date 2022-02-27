@@ -69,7 +69,7 @@ function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement 
             }
             $index_analyzer=$node->xpath("analyzer[@type='index']");
             if ($index_analyzer) {
-                $flatten_filter=$node->xpath("filter[@class='solr.FlattenGraphFilterFactory']");
+                $flatten_filter=$index_analyzer[0]->xpath("filter[@class='solr.FlattenGraphFilterFactory']");
                 if (!$flatten_filter) {
                     // add FlattenGraphFilterFactory filter to index analyzer
                     $flatten_filter = $index_analyzer[0]->addChild('filter', '');
