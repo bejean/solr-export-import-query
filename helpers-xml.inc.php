@@ -81,8 +81,12 @@ function formatXmlString($xml) {
     $pad        = 0; // initial indent
     $matches    = array(); // returns from preg_matches()
 
+    $in_comment = false;
+
     // scan each line and adjust indent based on opening/closing tags
     while ($token !== false) :
+        if (preg_match('/^.+<!--.*$/', $token, $matches))
+            $in_comment = true;
 
         // test for the various tag states
 
@@ -101,10 +105,18 @@ function formatXmlString($xml) {
         endif;
 
         // pad the line with the required number of leading spaces
-        $line    = str_pad($token, strlen($token)+$pad, ' ', STR_PAD_LEFT);
+        if ($in_comment)
+            $line    = str_pad($token, strlen($token), ' ', STR_PAD_LEFT);
+        else
+            $line    = str_pad($token, strlen($token)+$pad, ' ', STR_PAD_LEFT);
+
+        if (preg_match('/-->/', $token, $matches))
+            $in_comment = false;
+
         $result .= $line . "\n"; // add to the cumulative result, with linefeed
         $token   = strtok("\n"); // get the next token
         $pad    += $indent; // update the pad size for subsequent lines
+
     endwhile;
 
     return $result;
