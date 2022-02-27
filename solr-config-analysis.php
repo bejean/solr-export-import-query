@@ -102,7 +102,7 @@ function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement 
     // remove types inserted for compatibility
     $arr=array('ignored', 'random', 'binary', 'boolean', 'string', 'pint', 'plong', 'pfloat', 'pdouble', 'pdate');
     foreach($arr as $t) {
-        xml_remove_nodes($schema,"//fieldType[@name='" . $t . "']", true, 'remove');
+        xml_remove_nodes($schema,"//fieldType[@name='" . $t . "']", true);
     }
 
     $xml_str = $schema->asXML();
@@ -140,6 +140,9 @@ function xml_upgrade_config($params, $xml_solrconfig) {
         $schemaFactory = $xml_solrconfig->addChild('schemaFactory', '');
         $schemaFactory->addAttribute("class", "ClassicIndexSchemaFactory");
     }
+
+    // deprecate <jmx>
+    xml_remove_nodes($xml_solrconfig,"//jmx']", true, 'deprecated');
 
     // deprecate <checkIntegrityAtMerge>
     xml_remove_nodes($xml_solrconfig,"//checkIntegrityAtMerge", true, 'deprecated');
@@ -192,7 +195,7 @@ function xml_clean_schema(SimpleXMLElement $schema, SimpleXMLElement $solrconfig
     // remove unused type
     $arr_unused_field_type = unused_types($schema, $solrconfig);
     foreach($arr_unused_field_type as $name) {
-        xml_remove_nodes($schema, "//fieldType[@name='" . $name . "']", true, 'remove');
+        xml_remove_nodes($schema, "//fieldType[@name='" . $name . "']", true);
     }
     return $schema;
 }
