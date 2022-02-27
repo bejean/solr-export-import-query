@@ -301,7 +301,7 @@ $xmlDocument->loadXML(formatXmlString($xml_config_str));
 // save pretty version of input files
 print ("save pretty version of input files\n");
 xmlstr_save($xmlDocument->saveXML(),$config_dir . '/schema.' . $source_ext . '.pretty', false);
-xmlstr_save($xmlDocument->saveXML(),$config_dir . '/solrconfig' . $source_ext . '.pretty', false);
+xmlstr_save($xmlDocument->saveXML(),$config_dir . '/solrconfig.' . $source_ext . '.pretty', false);
 
 $is_first_pass = !isTargetVersion($params, $xml_solrconfig);
 
