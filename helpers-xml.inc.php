@@ -13,7 +13,7 @@ function xmlstr_save($str, $file, $backup=true) {
     // file exists ? -> save
     if ($backup && file_exists($file)) {
         $to = $file . '.' . date('Ymd-His');
-        print ("File $file exists, saving to $to");
+        print ("File $file exists, saving to $to\n");
         copy($file, $to);
     }
 
@@ -68,6 +68,10 @@ function xml_remove_nodes_attribute($xml, $xpath, $name) {
     foreach($nodes as $node) {
         unset($node[$name]);
     }
+}
+
+function remove_html_comments($html = '') {
+    return preg_replace('/<!--(.|\s)*?-->/', '', $html);
 }
 
 function formatXmlString($xml) {

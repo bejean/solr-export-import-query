@@ -196,6 +196,13 @@ function xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first
         if (count($qop)==1 && count($mm)==1) {
             xml_remove_nodes($xml_solrconfig,"//requestHandler[@class='solr.SearchHandler'][@name='" . $name . "']/lst/str[@name='q.op']", true);
         }
+        /*
+        $q=$node->xpath("lst/str[@name='q']");
+        if (count($q)==1) {
+           if (empty((string) $q[0][0]))
+               xml_remove_nodes($xml_solrconfig,"//requestHandler[@class='solr.SearchHandler'][@name='" . $name . "']/lst/str[@name='q']");
+        }
+        */
     }
 
     // temporary deprecated clustering lib
@@ -269,7 +276,7 @@ function xml_clean_schema(SimpleXMLElement $schema, SimpleXMLElement $solrconfig
     return $schema;
 }
 
-$options = getopt("", array('conf:', 'ini:', 'ext:', 'clean', 'upgrade', 'classic'));
+$options = getopt("", array('conf:', 'ini:', 'ext:', 'clean', 'upgrade', 'classic', 'nocomment'));
 
 // ini file
 $param_file = isset($options['ini']) ? $options['ini'] : '';
@@ -280,6 +287,7 @@ $params = parse_ini_file(dirname(__FILE__) . '/' . $param_file, true);
 $config_upgrade = isset($options['upgrade']);
 $config_clean = isset($options['clean']);
 $config_classic = isset($options['classic']);
+$config_nocomment = isset($options['nocomment']);
 
 $config_dir = $options['conf'] ?? '';
 if (empty($config_dir)) usage("Missing --conf parameter");
@@ -320,6 +328,8 @@ $xml_str = str_replace('<types>', '', $xml_str);
 $xml_str = str_replace('</types>', '', $xml_str);
 $xml_str = str_replace('<fieldtype', '<fieldType', $xml_str);
 $xml_str = str_replace('</fieldtype', '</fieldType', $xml_str);
+if ($config_nocomment)
+    $xml_str = remove_html_comments ($xml_str);
 $xml = xml_load_string($xml_str);
 if ($xml===false)
     usage("unable to parse $schema_file");
@@ -334,6 +344,8 @@ xmlstr_save($xmlDocument->saveXML(),$config_dir . '/schema.' . $source_ext . '.p
 
 $xml_config_str = file_get_contents($solrconfig_file);
 $xml_config_str = leading_tabs_to_spaces($xml_config_str);
+if ($config_nocomment)
+    $xml_config_str = remove_html_comments ($xml_config_str);
 $xml_solrconfig = xml_load_string($xml_config_str);
 
 if ($xml_solrconfig===false)
