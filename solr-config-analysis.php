@@ -5,7 +5,7 @@ include ('helpers-xml.inc.php');
 function usage($message = '') {
     if (!empty($message))
         print ('Error : ' . $message . "\n");
-    print ('Usage : php solr-config-analysis.php --ini inifile --conf solr_config_directory [--clean] [--upgrade]');
+    print ('Usage : php solr-config-analysis.php --ini inifile --conf solr_config_directory [--clean] [--upgrade] [--classic]');
     exit(-1);
 }
 
@@ -28,10 +28,19 @@ function unused_types($schema, $solrconfig) {
 }
 
 
-function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement $xml_solrconfig, $is_first_pass) {
+function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement $xml_solrconfig, $config_classic, $is_first_pass) {
     // schema version
     $target_schema_version = getParam('target_schema_version', $params, 'general', '1.6');
     $schema['version'] = $target_schema_version;
+
+    if ($config_classic) {
+        $results=$schema->xpath('//similarity');
+        if (count($results)==0) {
+            // <similarity class="org.apache.lucene.search.similarities.ClassicSimilarity" />
+            $similarity = $schema->addChild('similarity', '');
+            $similarity->addAttribute("class", "org.apache.lucene.search.similarities.ClassicSimilarity");
+        }
+    }
 
     // remove deprecated enablePositionIncrements filter attribute
     xml_remove_nodes_attribute($schema,"//filter[@enablePositionIncrements]", 'enablePositionIncrements');
@@ -143,7 +152,7 @@ function isTargetVersion($params, $xml_solrconfig) {
     return ($nodes[0][0]==$target_lucene_version);
 }
 
-function xml_upgrade_config($params, $xml_solrconfig, $is_first_pass) {
+function xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first_pass) {
     // luceneMatchVersion
     $target_lucene_version = getParam('target_lucene_version', $params, 'general', '');
     $nodes=$xml_solrconfig->xpath('//luceneMatchVersion');
@@ -154,6 +163,39 @@ function xml_upgrade_config($params, $xml_solrconfig, $is_first_pass) {
     if (count($schemaFactory)==0) {
         $schemaFactory = $xml_solrconfig->addChild('schemaFactory', '');
         $schemaFactory->addAttribute("class", "ClassicIndexSchemaFactory");
+    }
+
+    // solr.StandardRequestHandler deprecated
+    $results=$xml_solrconfig->xpath("//requestHandler[@class='solr.StandardRequestHandler']");
+    foreach($results as $node) {
+        $node['class'] = 'solr.SearchHandler';
+    }
+
+    // SearchHandler deduplicate
+    $results=$xml_solrconfig->xpath("//requestHandler[@class='solr.SearchHandler']");
+    foreach($results as $node) {
+        $name = xml_attribute($node, 'name');
+        if (!startsWith($name, '/')) {
+            $search = '/' . $name;
+            $rh=$xml_solrconfig->xpath("//requestHandler[@class='solr.SearchHandler'][@name='" . $search . "']");
+            if (count($rh)==1) {
+                xml_remove_nodes($xml_solrconfig,"//requestHandler[@class='solr.SearchHandler'][@name='" . $name . "']", true);
+            }
+            if (count($rh)==0) {
+                $node['name'] = '/' . $name;
+            }
+        }
+    }
+
+    // SearchHandler remove q.op if both q.op and mm exists
+    $results=$xml_solrconfig->xpath("//requestHandler[@class='solr.SearchHandler']");
+    foreach($results as $node) {
+        $name = xml_attribute($node, 'name');
+        $qop=$node->xpath("lst/str[@name='q.op']");
+        $mm=$node->xpath("lst/str[@name='mm']");
+        if (count($qop)==1 && count($mm)==1) {
+            xml_remove_nodes($xml_solrconfig,"//requestHandler[@class='solr.SearchHandler'][@name='" . $name . "']/lst/str[@name='q.op']", true);
+        }
     }
 
     // temporary deprecated clustering lib
@@ -227,7 +269,7 @@ function xml_clean_schema(SimpleXMLElement $schema, SimpleXMLElement $solrconfig
     return $schema;
 }
 
-$options = getopt("", array('conf:', 'ini:', 'ext:', 'clean', 'upgrade'));
+$options = getopt("", array('conf:', 'ini:', 'ext:', 'clean', 'upgrade', 'classic'));
 
 // ini file
 $param_file = isset($options['ini']) ? $options['ini'] : '';
@@ -237,6 +279,7 @@ $params = parse_ini_file(dirname(__FILE__) . '/' . $param_file, true);
 
 $config_upgrade = isset($options['upgrade']);
 $config_clean = isset($options['clean']);
+$config_classic = isset($options['classic']);
 
 $config_dir = $options['conf'] ?? '';
 if (empty($config_dir)) usage("Missing --conf parameter");
@@ -286,6 +329,9 @@ $xmlDocument->preserveWhiteSpace = false;
 $xmlDocument->formatOutput = true;
 $xmlDocument->loadXML(formatXmlString($xml_str));
 
+// save pretty version of input schema file
+xmlstr_save($xmlDocument->saveXML(),$config_dir . '/schema.' . $source_ext . '.pretty', false);
+
 $xml_config_str = file_get_contents($solrconfig_file);
 $xml_config_str = leading_tabs_to_spaces($xml_config_str);
 $xml_solrconfig = xml_load_string($xml_config_str);
@@ -298,9 +344,7 @@ $xmlDocument->preserveWhiteSpace = false;
 $xmlDocument->formatOutput = true;
 $xmlDocument->loadXML(formatXmlString($xml_config_str));
 
-// save pretty version of input files
-print ("save pretty version of input files\n");
-xmlstr_save($xmlDocument->saveXML(),$config_dir . '/schema.' . $source_ext . '.pretty', false);
+// save pretty version of input solrconfig file
 xmlstr_save($xmlDocument->saveXML(),$config_dir . '/solrconfig.' . $source_ext . '.pretty', false);
 
 $is_first_pass = !isTargetVersion($params, $xml_solrconfig);
@@ -377,8 +421,8 @@ echo "fl=".implode(',' ,array_diff(array_merge($arr_field_stored,$arr_field_not_
 echo "unique_key=" . $unique_key[0] . "\n";
 
 if ($config_upgrade) {
-    $xml = xml_upgrade_schema($params, $xml, $xml_solrconfig, $is_first_pass);
-    $xml_solrconfig = xml_upgrade_config($params, $xml_solrconfig, $is_first_pass);
+    $xml = xml_upgrade_schema($params, $xml, $xml_solrconfig, $config_classic, $is_first_pass);
+    $xml_solrconfig = xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first_pass);
 }
 
 if ($config_clean) {

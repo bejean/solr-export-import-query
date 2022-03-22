@@ -136,3 +136,8 @@ function insert_before_line_matching ($pattern, $str, $insert) {
     }
     return $ret;
 }
+
+function startsWith( $haystack, $needle ) {
+    $length = strlen( $needle );
+    return substr( $haystack, 0, $length ) === $needle;
+}
