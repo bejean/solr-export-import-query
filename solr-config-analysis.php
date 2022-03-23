@@ -187,14 +187,20 @@ function xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first
         }
     }
 
-    // SearchHandler remove q.op if both q.op and mm exists
-    $results=$xml_solrconfig->xpath("//requestHandler[@class='solr.SearchHandler']");
+    // SearchHandler remove q.op if both q.op and mm exists, add sow=true
+    $results=$xml_solrconfig->xpath("//requestHandler[@class='solr.SearchHandler']/lst[@name='defaults']");
     foreach($results as $node) {
-        $name = xml_attribute($node, 'name');
-        $qop=$node->xpath("lst/str[@name='q.op']");
-        $mm=$node->xpath("lst/str[@name='mm']");
+        $parents = $node->xpath("..");
+        $name = xml_attribute($parents[0], 'name');
+        $qop=$node->xpath("str[@name='q.op']");
+        $mm=$node->xpath("str[@name='mm']");
         if (count($qop)==1 && count($mm)==1) {
-            xml_remove_nodes($xml_solrconfig,"//requestHandler[@class='solr.SearchHandler'][@name='" . $name . "']/lst/str[@name='q.op']", true);
+            xml_remove_nodes($xml_solrconfig,"//requestHandler[@class='solr.SearchHandler'][@name='" . $name . "']/lst[@name='defaults']/str[@name='q.op']", true);
+        }
+        $sow=$node->xpath("str[@name='sow']");
+        if (count($sow)==0) {
+            $sow = $node->addChild('str', 'true');
+            $sow->addAttribute("name", "sow");
         }
         /*
         $q=$node->xpath("lst/str[@name='q']");
