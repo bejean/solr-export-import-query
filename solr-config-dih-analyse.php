@@ -46,6 +46,7 @@ function processEntities ($xml, $path, $depth, $config_verbose) {
         $entity = array();
         $processor = $attributes['processor'] ?? 'SqlEntityProcessor';
         $entity['depth'] = $depth;
+        $entity['name'] = $attributes['name'];
         $entity['processor'] = $processor;
         $entity['datasource'] = $attributes['datasource'];
         if (key_exists('transformer', $attributes)) {
@@ -56,7 +57,11 @@ function processEntities ($xml, $path, $depth, $config_verbose) {
             //$output .= "        driver  " . $node['driver'] . "\n";
             //$output .= "        url     " . $node['url'] . "\n";
         }
-        $entities['entities'] = processEntities ($xml, $path . '/entity', $depth+1, $config_verbose);
+
+        $sub_entities = processEntities ($xml, $path . '[@name="' . $attributes['name'] . '"]/entity', $depth+1, $config_verbose);
+        if (count($sub_entities)>0)
+            $entity['entities'] = $sub_entities;
+
         $entities[$attributes['name']] = $entity;
 
     }
