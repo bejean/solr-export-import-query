@@ -9,36 +9,58 @@ function usage($message = '') {
     exit(-1);
 }
 
+function searchDuplicateDatasource($datasource, $array) {
+    foreach ($array as $val) {
+        if (($val['url'] === $datasource['url'] ) && ($val['type'] === $datasource['name'])) {
+            return $val['name'];
+        }
+    }
+    return null;
+}
 
-function processEntities ($xml, $path, $depth, $output, $config_verbose) {
+function searchEntityByDatasource($datasource, $array) {
+    foreach ($array as $key => $entity) {
+        if ($key === 'entities') {
+            if (searchEntityByDatasource($datasource, $entity))
+                return true;
+        } else {
+            if (key_exists('datasource', $entity))
+                if (($entity['datasource'] === $datasource))
+                    return true;
+        }
+    }
+    return false;
+}
 
-    $indent_str = str_repeat(' ', ($depth - 1) * 4);
+function processEntities ($xml, $path, $depth, $config_verbose) {
+
+    //$indent_str = str_repeat(' ', ($depth - 1) * 4);
+    $entities = array();
 
     $nodes=$xml->xpath($path);
     if (count($nodes)==0)
-        return $output;
+        return $entities;
 
-    $output .= $indent_str . "--- Entities (depth = $depth) --- \n";
     foreach($nodes as $node) {
         $attributes = xmlAttributes2Array($node->attributes());
-        $output .= $indent_str . "    name " . $attributes['name'] . "\n";
+        $entity = array();
         $processor = $attributes['processor'] ?? 'SqlEntityProcessor';
-
-        //$processor = $attributes['processor'];
-        //if (empty($processor)) $processor = "SqlEntityProcessor.";
-        $output .= $indent_str . "        processor       " . $processor . "\n";
-        $output .= $indent_str . "        dataSource      " . $attributes['datasource'] . "\n";
+        $entity['depth'] = $depth;
+        $entity['processor'] = $processor;
+        $entity['datasource'] = $attributes['datasource'];
         if (key_exists('transformer', $attributes)) {
-            $output .= $indent_str . "        transformers    " . $attributes['transformer'] . "\n";
+            $entity['transformers'] = explode(',',$attributes['transformer']);
         }
 
         if ($config_verbose) {
             //$output .= "        driver  " . $node['driver'] . "\n";
             //$output .= "        url     " . $node['url'] . "\n";
         }
-        $output= processEntities ($xml, $path . '/entity', $depth+1, $output, $config_verbose);
+        $entities['entities'] = processEntities ($xml, $path . '/entity', $depth+1, $config_verbose);
+        $entities[$attributes['name']] = $entity;
+
     }
-    return $output;
+    return $entities;
 }
 
 $options = getopt("", array('conf:', 'ini:', 'verbose'));
@@ -62,7 +84,7 @@ $config_verbose = isset($options['verbose']);
 
 $params = parse_ini_file(dirname(__FILE__) . '/' . $param_file, true);
 
-$output = '';
+$output = array();
 
 $xml_str = file_get_contents($config_file);
 $xml_str = leading_tabs_to_spaces($xml_str);
@@ -71,21 +93,55 @@ $xml = xml_load_string($xml_str);
 if ($xml===false)
     usage("unable to parse $config_file");
 
-$output .= "--- Datasources --- \n";
+// Entities
+$entities = processEntities ($xml, '/dataConfig/document/entity', 1, $output, $config_verbose);
+
+// Datasources
+$output['datasources'] = array();
+$output['datasources_unused'] = array();
 $nodes=$xml->xpath("/dataConfig/dataSource");
 foreach($nodes as $node) {
     $attributes = xmlAttributes2Array($node->attributes());
 
-    $output .= "    name " . $attributes['name'] . "\n";
-    $output .= "        type    " . $attributes['type'] . "\n";
-    if ($config_verbose) {
-        if (key_exists('driver', $attributes))
-            $output .= "        driver  " . $attributes['driver'] . "\n";
-        if (key_exists('url', $attributes))
-            $output .= "        url     " . $attributes['url'] . "\n";
+    $datasource = array();
+    $datasource['name'] = $attributes['name'];
+    $datasource['type'] = $attributes['type'];
+    if (key_exists('driver', $attributes))
+        $datasource['driver'] = $attributes['driver'];
+    if (key_exists('url', $attributes))
+        $datasource['url'] = $attributes['url'];
+
+    // doublon ???
+    //$doublon = searchDuplicateDatasource($datasource, $output['datasources']);
+    if (!empty($doublon)) {
+        $datasource['duplicate'] = $doublon;
     }
+
+    // utilisé ???
+    if (!searchEntityByDatasource($attributes['name'], $entities))
+        $output['datasources_unused'][$attributes['name']] = $datasource;
+    else
+        $output['datasources'][$attributes['name']] = $datasource;
 }
 
-$output = processEntities ($xml, '/dataConfig/document/entity', 1, $output, $config_verbose);
+// Processors
+$output['processors'] = array();
+//$output['transformers'] = array();
+$transformers = '';
+$nodes=$xml->xpath("//entity");
+foreach($nodes as $node) {
+    $attributes = xmlAttributes2Array($node->attributes());
+    $processor = $attributes['processor'] ?? 'SqlEntityProcessor';
+    $output['processors'][] = $processor;
+    if (key_exists('transformer', $attributes)) {
+        if (!empty($transformers))
+            $transformers .= ',';
+        $transformers .= $attributes['transformer'];
+    }
+}
+$output['processors'] = array_values(array_unique($output['processors'],SORT_STRING));
+$output['transformers'] = array_values(array_unique(array_map('trim',explode(',', $transformers)),SORT_STRING));
 
-echo $output;
+$output['entities'] = $entities;
+
+echo json_encode($output, JSON_PRETTY_PRINT);
