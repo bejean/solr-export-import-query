@@ -20,14 +20,12 @@ function searchDuplicateDatasource($datasource, $array) {
 
 function searchEntityByDatasource($datasource, $array) {
     foreach ($array as $key => $entity) {
-        if ($key === 'entities') {
-            if (searchEntityByDatasource($datasource, $entity))
+        if (key_exists('datasource', $entity))
+            if (($entity['datasource'] === $datasource))
                 return true;
-        } else {
-            if (key_exists('datasource', $entity))
-                if (($entity['datasource'] === $datasource))
-                    return true;
-        }
+        if (key_exists('entities', $entity))
+            if (searchEntityByDatasource($datasource, $entity['entities']))
+                return true;
     }
     return false;
 }
@@ -62,7 +60,7 @@ function processEntities ($xml, $path, $depth, $config_verbose) {
         if (count($sub_entities)>0)
             $entity['entities'] = $sub_entities;
 
-        $entities[$attributes['name']] = $entity;
+        $entities[] = $entity;
 
     }
     return $entities;
@@ -145,7 +143,9 @@ foreach($nodes as $node) {
     }
 }
 $output['processors'] = array_values(array_unique($output['processors'],SORT_STRING));
-$output['transformers'] = array_values(array_unique(array_map('trim',explode(',', $transformers)),SORT_STRING));
+$transformer = array_values(array_unique(array_map('trim',explode(',', $transformers))));
+sort($transformer);
+$output['transformers'] = $transformer;
 
 $output['entities'] = $entities;
 
