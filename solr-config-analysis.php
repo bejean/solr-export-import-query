@@ -5,7 +5,7 @@ include ('helpers-xml.inc.php');
 function usage($message = '') {
     if (!empty($message))
         print ('Error : ' . $message . "\n");
-    print ('Usage : php solr-config-analysis.php --ini inifile --conf solr_config_directory [--clean] [--upgrade] [--classic]');
+    print ('Usage : php solr-config-analysis.php --ini inifile --conf solr_config_directory [--clean] [--upgrade] [--classic] [--no-flag]');
     exit(-1);
 }
 
@@ -28,7 +28,7 @@ function unused_types($schema, $solrconfig) {
 }
 
 
-function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement $xml_solrconfig, $config_classic, $is_first_pass) {
+function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement $xml_solrconfig, $config_classic, $is_first_pass, $config_flag_only) {
     // schema version
     $target_schema_version = getParam('target_schema_version', $params, 'general', '1.6');
     $schema['version'] = $target_schema_version;
@@ -91,7 +91,7 @@ function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement 
     // replace int and tint by pint
     $arr=array('int', 'long', 'float', 'double', 'date');
     foreach($arr as $t) {
-        xml_remove_nodes($schema,"//fieldType[@name='t" . $t . "']", true, 'deprecated');
+        xml_remove_nodes($schema,"//fieldType[@name='t" . $t . "']", $config_flag_only, 'deprecated');
         $nodes = $schema->xpath("//field[@type='t" . $t . "']");
         foreach ($nodes as $node) {
             $node['type'] = 'p' . $t;
@@ -101,7 +101,7 @@ function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement 
             $node['type'] = 'p' . $t;
         }
 
-        xml_remove_nodes($schema,"//fieldType[@name='" . $t . "']", true, 'deprecated');
+        xml_remove_nodes($schema,"//fieldType[@name='" . $t . "']", $config_flag_only, 'deprecated');
         $nodes = $schema->xpath("//field[@type='" . $t . "']");
         foreach ($nodes as $node) {
             $node['type'] = 'p' . $t;
@@ -116,7 +116,7 @@ function xml_upgrade_schema($params, SimpleXMLElement $schema, SimpleXMLElement 
     if ($is_first_pass) {
         $arr = array('ignored', 'random', 'binary', 'boolean', 'string', 'pint', 'plong', 'pfloat', 'pdouble', 'pdate');
         foreach ($arr as $t) {
-            xml_remove_nodes($schema, "//fieldType[@name='" . $t . "']", true);
+            xml_remove_nodes($schema, "//fieldType[@name='" . $t . "']", $config_flag_only);
         }
     }
 
@@ -152,7 +152,7 @@ function isTargetVersion($params, $xml_solrconfig) {
     return ($nodes[0][0]==$target_lucene_version);
 }
 
-function xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first_pass) {
+function xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first_pass, $config_flag_only) {
     // luceneMatchVersion
     $target_lucene_version = getParam('target_lucene_version', $params, 'general', '');
     $nodes=$xml_solrconfig->xpath('//luceneMatchVersion');
@@ -179,7 +179,7 @@ function xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first
             $search = '/' . $name;
             $rh=$xml_solrconfig->xpath("//requestHandler[@class='solr.SearchHandler'][@name='" . $search . "']");
             if (count($rh)==1) {
-                xml_remove_nodes($xml_solrconfig,"//requestHandler[@class='solr.SearchHandler'][@name='" . $name . "']", true);
+                xml_remove_nodes($xml_solrconfig,"//requestHandler[@class='solr.SearchHandler'][@name='" . $name . "']", $config_flag_only);
             }
             if (count($rh)==0) {
                 $node['name'] = '/' . $name;
@@ -195,7 +195,7 @@ function xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first
         $qop=$node->xpath("str[@name='q.op']");
         $mm=$node->xpath("str[@name='mm']");
         if (count($qop)==1 && count($mm)==1) {
-            xml_remove_nodes($xml_solrconfig,"//requestHandler[@class='solr.SearchHandler'][@name='" . $name . "']/lst[@name='defaults']/str[@name='q.op']", true);
+            xml_remove_nodes($xml_solrconfig,"//requestHandler[@class='solr.SearchHandler'][@name='" . $name . "']/lst[@name='defaults']/str[@name='q.op']", $config_flag_only);
         }
         $sow=$node->xpath("str[@name='sow']");
         if (count($sow)==0) {
@@ -222,23 +222,23 @@ function xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first
     }
 
     // deprecate <jmx>
-    xml_remove_nodes($xml_solrconfig,"//jmx", true, 'deprecated');
+    xml_remove_nodes($xml_solrconfig,"//jmx", $config_flag_only, 'deprecated');
 
     // deprecate <checkIntegrityAtMerge>
-    xml_remove_nodes($xml_solrconfig,"//checkIntegrityAtMerge", true, 'deprecated');
+    xml_remove_nodes($xml_solrconfig,"//checkIntegrityAtMerge", $config_flag_only, 'deprecated');
 
     // remove implicite handlers
-    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update']", true);
-    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update/json']", true);
-    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update/csv']", true);
-    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update/extract']", true);
-    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/analysis/field']", true);
-    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/analysis/document']", true);
-    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/debug/dump']", true);
-    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/admin/']", true);
-    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update']", true);
-    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/replication']", true);
-    xml_remove_nodes($xml_solrconfig,"//admin", true);
+    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update']", $config_flag_only);
+    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update/json']", $config_flag_only);
+    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update/csv']", $config_flag_only);
+    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update/extract']", $config_flag_only);
+    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/analysis/field']", $config_flag_only);
+    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/analysis/document']", $config_flag_only);
+    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/debug/dump']", $config_flag_only);
+    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/admin/']", $config_flag_only);
+    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/update']", $config_flag_only);
+    xml_remove_nodes($xml_solrconfig,"//requestHandler[@name='/replication']", $config_flag_only);
+    xml_remove_nodes($xml_solrconfig,"//admin", $config_flag_only);
 
     // cache fieldValueCache filterCache documentCache queryResultCache remove class attribute
     xml_remove_nodes_attribute($xml_solrconfig, "//cache", "class");
@@ -272,17 +272,17 @@ function xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first
     return xml_load_string($xmlDocument->saveXML());
 }
 
-function xml_clean_schema(SimpleXMLElement $schema, SimpleXMLElement $solrconfig)
+function xml_clean_schema(SimpleXMLElement $schema, SimpleXMLElement $solrconfig, $config_flag_only)
 {
     // remove unused type
     $arr_unused_field_type = unused_types($schema, $solrconfig);
     foreach($arr_unused_field_type as $name) {
-        xml_remove_nodes($schema, "//fieldType[@name='" . $name . "']", true);
+        xml_remove_nodes($schema, "//fieldType[@name='" . $name . "']", $config_flag_only);
     }
     return $schema;
 }
 
-$options = getopt("", array('conf:', 'ini:', 'ext:', 'clean', 'upgrade', 'classic', 'nocomment'));
+$options = getopt("", array('conf:', 'ini:', 'ext:', 'clean', 'upgrade', 'classic', 'nocomment', 'no-flag'));
 
 // ini file
 $param_file = isset($options['ini']) ? $options['ini'] : '';
@@ -294,6 +294,7 @@ $config_upgrade = isset($options['upgrade']);
 $config_clean = isset($options['clean']);
 $config_classic = isset($options['classic']);
 $config_nocomment = isset($options['nocomment']);
+$config_flag_only = !isset($options['no-flag']);
 
 $config_dir = $options['conf'] ?? '';
 if (empty($config_dir)) usage("Missing --conf parameter");
@@ -439,12 +440,12 @@ echo "fl=".implode(',' ,array_diff(array_merge($arr_field_stored,$arr_field_not_
 echo "unique_key=" . $unique_key[0] . "\n";
 
 if ($config_upgrade) {
-    $xml = xml_upgrade_schema($params, $xml, $xml_solrconfig, $config_classic, $is_first_pass);
-    $xml_solrconfig = xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first_pass);
+    $xml = xml_upgrade_schema($params, $xml, $xml_solrconfig, $config_classic, $is_first_pass, $config_flag_only);
+    $xml_solrconfig = xml_upgrade_config($params, $xml_solrconfig, $config_classic, $is_first_pass, $config_flag_only);
 }
 
 if ($config_clean) {
-    $xml = xml_clean_schema($xml, $xml_solrconfig);
+    $xml = xml_clean_schema($xml, $xml_solrconfig, $config_flag_only);
 }
 
 if ($config_clean || $config_upgrade) {

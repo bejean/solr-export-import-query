@@ -125,3 +125,12 @@ function formatXmlString($xml) {
 
     return $result;
 }
+
+function xmlAttributes2Array($attributes)
+{
+    $attrArray = array();
+    foreach ($attributes as $key => $val) {
+        $attrArray[strtolower((string)$key)] = (string)$val;
+    }
+    return $attrArray;
+}
