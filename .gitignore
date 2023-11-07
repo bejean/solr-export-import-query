@@ -3,10 +3,10 @@
 
 AsyncRequest/
 
-export-lf\.ini
+settings/export-lf.ini
 
-query-lf\.ini
+settings/query-lf.ini
 
-import-lf\.ini
+settings/import-lf.ini
 
-export-gosport\.ini
+settings/export-gosport.ini
